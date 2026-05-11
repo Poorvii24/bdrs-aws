@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BDRS — Audit Log</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{--c1:#00d4ff;--c3:#ff6b00;--c4:#00ff88;--c5:#ff3366;--c6:#aa44ff;--panel:#040f1c;--border:#0a2a4a;--mono:'JetBrains Mono',monospace;--sans:'Space Grotesk',sans-serif;}
+body{font-family:var(--sans);background:#020810;color:#a0d4ff;min-height:100vh;}
+::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:#020d18;}::-webkit-scrollbar-thumb{background:#0a3a5a;border-radius:2px;}
+.topbar{background:#030d1a;border-bottom:1px solid #0a2a4a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#00d4ff44,#00d4ff88,#00d4ff44,transparent);}
+.tb-left{display:flex;align-items:center;gap:14px;}
+.tb-logo{width:32px;height:32px;border:1px solid var(--c1);border-radius:5px;display:flex;align-items:center;justify-content:center;}
+h1{font-size:15px;font-weight:700;color:#e0f4ff;letter-spacing:.5px;}
+.tb-sub{font-size:10px;color:#4a7a9a;font-family:var(--mono);}
+.back-btn{font-size:10px;padding:5px 14px;border:1px solid var(--c1);background:transparent;color:var(--c1);cursor:pointer;border-radius:3px;font-family:var(--mono);text-decoration:none;transition:all .2s;}
+.back-btn:hover{background:#001822;}
+.export-btn{font-size:10px;padding:5px 14px;border:1px solid var(--c3);background:transparent;color:var(--c3);cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;}
+.export-btn:hover{background:#1a0500;}
+.main{padding:20px 24px;}
+
+/* ── DEBUG BANNER ── */
+.debug-banner{background:#0a0018;border:1px solid var(--c6);border-left:3px solid var(--c6);border-radius:4px;padding:10px 16px;margin-bottom:16px;font-size:11px;font-family:var(--mono);color:var(--c6);}
+.debug-banner strong{color:#e0d4ff;}
+.debug-banner a{color:var(--c1);text-decoration:none;}
+.debug-banner a:hover{text-decoration:underline;}
+
+/* ── SUMMARY CARDS ── */
+.summary-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:20px;}
+.sum-card{background:var(--panel);border:1px solid var(--border);border-top:2px solid;border-radius:4px;padding:14px 16px;position:relative;}
+.sum-label{font-size:9px;color:#4a7a9a;text-transform:uppercase;letter-spacing:1px;font-family:var(--mono);margin-bottom:6px;}
+.sum-val{font-size:32px;font-weight:700;font-family:var(--mono);line-height:1;}
+.sum-sub{font-size:9px;font-family:var(--mono);margin-top:4px;color:#2a5a7a;}
+.sum-card.total{border-top-color:var(--c1);}.sum-card.total .sum-val{color:var(--c1);}
+.sum-card.backup{border-top-color:var(--c4);}.sum-card.backup .sum-val{color:var(--c4);}
+.sum-card.recover{border-top-color:var(--c6);}.sum-card.recover .sum-val{color:var(--c6);}
+.sum-card.disaster{border-top-color:var(--c5);}.sum-card.disaster .sum-val{color:var(--c5);}
+.sum-card.other{border-top-color:var(--c3);}.sum-card.other .sum-val{color:var(--c3);}
+
+/* ── FILTERS ── */
+.filter-bar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+.f-btn{font-size:10px;padding:5px 12px;border:1px solid #0a2a4a;background:transparent;color:#4a7a9a;cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;}
+.f-btn:hover,.f-btn.active{border-color:var(--c1);color:var(--c1);background:#001822;}
+.f-btn.fa-disaster.active{border-color:var(--c5);color:var(--c5);background:#1a0010;}
+.f-btn.fa-recover.active{border-color:var(--c4);color:var(--c4);background:#001a0d;}
+.f-btn.fa-pitr.active{border-color:var(--c6);color:var(--c6);background:#0a0018;}
+.f-btn.fa-tag.active{border-color:#ffcc00;color:#ffcc00;background:#1a1400;}
+.search-wrap{flex:1;position:relative;min-width:200px;}
+.search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:#4a7a9a;}
+.search-in{width:100%;background:#020d18;border:1px solid #0a2a4a;color:#a0d4ff;padding:6px 10px 6px 30px;font-size:11px;font-family:var(--mono);border-radius:3px;outline:none;}
+.search-in:focus{border-color:var(--c1);}
+.search-in::placeholder{color:#2a5a7a;}
+
+/* ── TABLE ── */
+.audit-table{width:100%;border-collapse:collapse;font-size:11px;font-family:var(--mono);}
+.audit-table th{background:#030c18;color:#6a9ab8;font-size:9px;text-transform:uppercase;letter-spacing:1px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:500;text-align:left;user-select:none;cursor:pointer;}
+.audit-table th:hover{color:var(--c1);}
+.sort-ind{margin-left:3px;opacity:.5;}
+.audit-table td{padding:10px 14px;border-bottom:1px solid #030d1a;vertical-align:middle;}
+.audit-table tr.audit-row:hover td{background:#030c18;}
+.type-badge{font-size:9px;padding:2px 8px;border:1px solid;border-radius:2px;white-space:nowrap;}
+.type-backup  {border-color:var(--c4); color:var(--c4); background:#001a0d;}
+.type-recover {border-color:var(--c6); color:var(--c6); background:#0a0018;}
+.type-disaster{border-color:var(--c5); color:var(--c5); background:#1a0010;}
+.type-pitr    {border-color:var(--c1); color:var(--c1); background:#001822;}
+.type-sns     {border-color:var(--c3); color:var(--c3); background:#1a0500;}
+.type-tag     {border-color:#ffcc00;   color:#ffcc00;   background:#1a1400;}
+.type-autorecov{border-color:#00ffee; color:#00ffee;  background:#001a1a;}
+.type-error   {border-color:var(--c5); color:var(--c5); background:#1a0010;}
+.type-other   {border-color:#2a5a7a;   color:#2a5a7a;   background:#020d18;}
+.msg-cell{color:#a0c8e0;max-width:440px;word-break:break-word;}
+.time-cell{color:#2a5a7a;white-space:nowrap;}
+.sev-bar{width:3px;border-radius:1px;height:28px;min-height:28px;}
+.no-results{text-align:center;color:#2a5a7a;padding:40px;font-family:var(--mono);}
+.empty-state{text-align:center;padding:48px 24px;}
+.empty-state-icon{font-size:36px;margin-bottom:12px;}
+.empty-state-title{font-size:14px;color:#a0c8e0;margin-bottom:8px;font-family:var(--sans);}
+.empty-state-sub{font-size:11px;color:#2a5a7a;font-family:var(--mono);line-height:1.8;}
+
+/* ── PAGINATION ── */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 0;margin-top:8px;}
+.page-info{font-size:10px;font-family:var(--mono);color:#4a7a9a;}
+.page-btns{display:flex;gap:6px;}
+.page-btn{font-size:10px;padding:4px 10px;border:1px solid #0a2a4a;background:transparent;color:#4a7a9a;cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;}
+.page-btn:hover{border-color:var(--c1);color:var(--c1);background:#001822;}
+.page-btn:disabled{opacity:.3;cursor:default;pointer-events:none;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">
+      <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+        <rect x="2" y="2" width="7" height="7" stroke="#00d4ff" stroke-width="1.5"/>
+        <rect x="11" y="2" width="7" height="7" stroke="#00d4ff" stroke-width="1" opacity=".5"/>
+        <rect x="2" y="11" width="7" height="7" stroke="#00d4ff" stroke-width="1" opacity=".5"/>
+        <rect x="11" y="11" width="7" height="7" stroke="#00d4ff" stroke-width="1" opacity=".2"/>
+      </svg>
+    </div>
+    <div>
+      <h1>BDRS — Full Audit Log</h1>
+      <div class="tb-sub">All system events · DynamoDB source of truth · SIT Tumakuru Batch B15</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    <a href="/" class="back-btn">← Dashboard</a>
+  </div>
+</div>
+
+<div class="main">
+
+  {# ── DEBUG BANNER: only shows if total is 0 — helps diagnose empty table ── #}
+  {% if total == 0 %}
+  <div class="debug-banner">
+    <strong>⚠ No events found in DynamoDB.</strong>
+    Check: (1) Your table name is exactly <strong>{{ ALERTS_TABLE }}</strong> &nbsp;|&nbsp;
+    (2) Your EC2 IAM role has <strong>dynamodb:Scan</strong> permission &nbsp;|&nbsp;
+    (3) Visit <a href="/debug/alerts">/debug/alerts</a> to see raw DynamoDB response &nbsp;|&nbsp;
+    (4) Upload a file first to generate events.
+  </div>
+  {% endif %}
+
+  {# ── SUMMARY CARDS ── #}
+  <div class="summary-row">
+    <div class="sum-card total">
+      <div class="sum-label">Total Events</div>
+      <div class="sum-val">{{ total }}</div>
+      <div class="sum-sub">all time</div>
+    </div>
+    <div class="sum-card backup">
+      <div class="sum-label">Backups</div>
+      <div class="sum-val">{{ backup_count }}</div>
+      <div class="sum-sub">files secured</div>
+    </div>
+    <div class="sum-card recover">
+      <div class="sum-label">Recoveries</div>
+      <div class="sum-val">{{ recover_count }}</div>
+      <div class="sum-sub">files restored</div>
+    </div>
+    <div class="sum-card disaster">
+      <div class="sum-label">Disasters</div>
+      <div class="sum-val">{{ disaster_count }}</div>
+      <div class="sum-sub">simulated events</div>
+    </div>
+    <div class="sum-card other">
+      <div class="sum-label">Other Events</div>
+      <div class="sum-val">{{ pitr_count + tag_count }}</div>
+      <div class="sum-sub">PITR · Tags · SNS</div>
+    </div>
+  </div>
+
+  {# ── FILTERS ── #}
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input class="search-in" type="text" id="searchIn" placeholder="Search events…" oninput="applyFilters()">
+    </div>
+    <button class="f-btn active"        onclick="setFilter('all',this)">ALL ({{ total }})</button>
+    <button class="f-btn"               onclick="setFilter('backup',this)">BACKUPS ({{ backup_count }})</button>
+    <button class="f-btn fa-recover"    onclick="setFilter('recover',this)">RECOVERIES ({{ recover_count }})</button>
+    <button class="f-btn fa-disaster"   onclick="setFilter('disaster',this)">DISASTERS ({{ disaster_count }})</button>
+    <button class="f-btn fa-pitr"       onclick="setFilter('pitr',this)">PITR ({{ pitr_count }})</button>
+    <button class="f-btn fa-tag"        onclick="setFilter('tag',this)">TAGS ({{ tag_count }})</button>
+    <button class="f-btn"               onclick="setFilter('sns',this)">SNS</button>
+  </div>
+
+  {# ── TABLE ── #}
+  {% if alerts %}
+  <table class="audit-table" id="auditTable">
+    <thead>
+      <tr>
+        <th style="width:4px;padding:10px 4px;"></th>
+        <th onclick="sortBy('time')">Timestamp <span class="sort-ind" id="si-time">↓</span></th>
+        <th onclick="sortBy('type')">Event Type <span class="sort-ind" id="si-type"></span></th>
+        <th>Message</th>
+        <th onclick="sortBy('id')">Alert ID <span class="sort-ind" id="si-id"></span></th>
+      </tr>
+    </thead>
+    <tbody id="auditBody">
+      {% for alert in alerts %}
+      <tr class="audit-row"
+          data-type="{{ alert.type | lower }}"
+          data-msg="{{ alert.message | lower }}"
+          data-time="{{ alert.time }}"
+          data-id="{{ alert.alert_id }}">
+        <td style="padding:10px 4px;">
+          <div class="sev-bar" style="background:
+            {%- if alert.type=='disaster' %}#ff3366
+            {%- elif alert.type=='recover' %}#aa44ff
+            {%- elif alert.type=='backup' %}#00ff88
+            {%- elif alert.type=='pitr' %}#00d4ff
+            {%- elif alert.type=='sns' %}#ff6b00
+            {%- elif alert.type=='tag' %}#ffcc00
+            {%- elif alert.type=='autorecov' %}#00ffee
+            {%- elif alert.type=='error' %}#ff3366
+            {%- else %}#2a5a7a
+            {%- endif %};"></div>
+        </td>
+        <td class="time-cell">{{ alert.time }}</td>
+        <td>
+          <span class="type-badge type-{{ alert.type if alert.type in ['backup','recover','disaster','pitr','sns','tag','autorecov','error'] else 'other' }}">
+            {{ alert.type | upper }}
+          </span>
+        </td>
+        <td class="msg-cell">{{ alert.message }}</td>
+        <td class="time-cell" style="font-size:9px;">{{ alert.alert_id[:16] }}…</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div id="noMatch" style="display:none;" class="no-results">[ NO EVENTS MATCH FILTER ]</div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-state-icon">📭</div>
+    <div class="empty-state-title">No audit events recorded yet</div>
+    <div class="empty-state-sub">
+      Upload a file from the dashboard to generate your first backup event.<br>
+      Every backup, restore, disaster simulation, and integrity check gets logged here.<br><br>
+      If you have already uploaded files and still see this:<br>
+      → Check <a href="/debug/alerts" style="color:var(--c1);">/debug/alerts</a> to inspect the raw DynamoDB response<br>
+      → Confirm your DynamoDB table name matches: <strong style="color:var(--c3);">{{ ALERTS_TABLE if ALERTS_TABLE is defined else 'bdrs-alerts-log' }}</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="pagination" id="paginationBar">
+    <div class="page-info" id="pageInfo">–</div>
+    <div class="page-btns">
+      <button class="page-btn" id="prevBtn" onclick="changePage(-1)" disabled>← Prev</button>
+      <span id="pageNum" style="font-size:10px;font-family:var(--mono);color:#4a7a9a;padding:4px 8px;"></span>
+      <button class="page-btn" id="nextBtn" onclick="changePage(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var allRows=[], filtered=[], currentFilter='all', page=1, perPage=50, sortCol='time', sortDir='desc';
+
+window.addEventListener('DOMContentLoaded',function(){
+  allRows=Array.from(document.querySelectorAll('tr.audit-row'));
+  applyFilters();
+});
+
+function setFilter(f,btn){
+  currentFilter=f; page=1;
+  document.querySelectorAll('.f-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function applyFilters(){
+  var q=(document.getElementById('searchIn').value||'').toLowerCase().trim();
+  filtered=allRows.filter(function(r){
+    var t=r.dataset.type||'';
+    var m=r.dataset.msg||'';
+    var matchF=(currentFilter==='all'||t===currentFilter);
+    var matchQ=!q||(m.includes(q)||t.includes(q)||r.dataset.id.toLowerCase().includes(q));
+    return matchF&&matchQ;
+  });
+  renderPage();
+}
+
+function renderPage(){
+  var total=filtered.length;
+  var start=(page-1)*perPage;
+  var end=Math.min(start+perPage,total);
+  allRows.forEach(function(r){r.style.display='none';});
+  filtered.slice(start,end).forEach(function(r){r.style.display='';});
+  var noMatch=document.getElementById('noMatch');
+  var tbl=document.getElementById('auditTable');
+  if(noMatch){noMatch.style.display=total===0?'':'none';}
+  if(tbl){tbl.style.display=total===0?'none':'';}
+  var totalPages=Math.max(1,Math.ceil(total/perPage));
+  document.getElementById('prevBtn').disabled=page<=1;
+  document.getElementById('nextBtn').disabled=end>=total;
+  document.getElementById('pageNum').textContent='Page '+page+'/'+totalPages;
+  document.getElementById('pageInfo').textContent=
+    total===0?'No matching events':'Showing '+(total===0?0:start+1)+'–'+end+' of '+total+' events';
+}
+
+function changePage(d){page+=d;renderPage();}
+
+function sortBy(col){
+  if(sortCol===col){sortDir=sortDir==='asc'?'desc':'asc';}
+  else{sortCol=col;sortDir='desc';}
+  ['time','type','id'].forEach(function(c){
+    var el=document.getElementById('si-'+c);
+    if(el)el.textContent=(c===sortCol?(sortDir==='asc'?'↑':'↓'):'');
+  });
+  allRows.sort(function(a,b){
+    var av='',bv='';
+    if(col==='time'){av=a.dataset.time||'';bv=b.dataset.time||'';}
+    else if(col==='type'){av=a.dataset.type||'';bv=b.dataset.type||'';}
+    else if(col==='id'){av=a.dataset.id||'';bv=b.dataset.id||'';}
+    return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+  });
+  var tbody=document.getElementById('auditBody');
+  if(tbody)allRows.forEach(function(r){tbody.appendChild(r);});
+  applyFilters();
+}
+
+function exportCSV(){
+  var rows=[['TIMESTAMP','EVENT TYPE','MESSAGE','ALERT ID']];
+  filtered.forEach(function(r){
+    var tds=r.querySelectorAll('td');
+    if(tds.length>=5)rows.push([
+      tds[1].textContent.trim(),
+      tds[2].textContent.trim(),
+      tds[3].textContent.trim(),
+      tds[4].textContent.trim()
+    ]);
+  });
+  var csv='BDRS Full Audit Log\nExported: '+new Date().toISOString()+'\nFilter: '+currentFilter+'\n\n';
+  csv+=rows.map(function(r){return r.map(function(c){return '"'+c.replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='bdrs_audit_'+currentFilter+'_'+Date.now()+'.csv';
+  a.click();
+}
+</script>
+</body>
+</html>

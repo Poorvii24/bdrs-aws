@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BDRS — Backup & Disaster Recovery System</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --c1:#00d4ff;--c2:#0066ff;--c3:#ff6b00;--c4:#00ff88;--c5:#ff3366;
+  --c6:#aa44ff;--c7:#ffcc00;
+  --panel:#040f1c;--panel2:#050e1a;--border:#0a2a4a;--border2:#0d3254;
+  --mono:'JetBrains Mono',monospace;--sans:'Space Grotesk',sans-serif;
+  --bg:#020810;
+}
+body{font-family:var(--sans);background:var(--bg);color:#a0d4ff;min-height:100vh;}
+
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:#020d18;}
+::-webkit-scrollbar-thumb{background:#0a3a5a;border-radius:2px;}
+
+/* ── TOPBAR ── */
+.topbar{background:#030d1a;border-bottom:1px solid #0a2a4a;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#00d4ff44,#00d4ff88,#00d4ff44,transparent);}
+.tb-left{display:flex;align-items:center;gap:14px;}
+.tb-logo{width:36px;height:36px;border:1px solid var(--c1);border-radius:6px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.tb-logo::before{content:'';position:absolute;inset:-50%;background:linear-gradient(45deg,transparent 40%,#00d4ff18 50%,transparent 60%);animation:sheen 3s infinite;}
+@keyframes sheen{0%{transform:translateX(-100%) translateY(-100%);}100%{transform:translateX(100%) translateY(100%);}}
+.tb-logo svg{width:20px;height:20px;}
+.tb-title h1{font-size:15px;font-weight:700;color:#e0f4ff;letter-spacing:.5px;font-family:var(--sans);}
+.tb-title p{font-size:10px;color:#4a7a9a;letter-spacing:0.5px;font-family:var(--mono);}
+.tb-right{display:flex;align-items:center;gap:10px;}
+.sys-status{display:flex;align-items:center;gap:6px;}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--c4);box-shadow:0 0 8px var(--c4);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(.8);}}
+.sys-status span{font-size:10px;font-family:var(--mono);color:var(--c4);}
+.tb-badge{font-size:9px;padding:3px 9px;border-radius:3px;border:1px solid;font-family:var(--mono);letter-spacing:.5px;cursor:default;}
+.tb-badge.green{border-color:var(--c4);color:var(--c4);background:#001a0d;}
+.tb-badge.blue{border-color:var(--c1);color:var(--c1);background:#001822;}
+.tb-badge.orange{border-color:var(--c3);color:var(--c3);background:#1a0a00;}
+.tb-badge.purple{border-color:var(--c6);color:var(--c6);background:#0a0018;}
+.user-chip{display:flex;align-items:center;gap:6px;background:#040f1c;border:1px solid #0a2a4a;padding:5px 12px;border-radius:4px;}
+.user-avatar{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#ff9900,#ff5500);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;font-family:var(--mono);}
+.user-chip span{font-size:10px;color:#a0d4ff;font-family:var(--mono);}
+
+/* ── MAIN LAYOUT ── */
+.main{padding:16px 24px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;}
+
+/* ── QUOTA WARNING BANNER ── */
+.quota-banner{background:#1a0a00;border:1px solid var(--c3);border-left:3px solid var(--c3);border-radius:4px;padding:10px 16px;display:flex;align-items:center;gap:10px;font-size:12px;font-family:var(--mono);color:var(--c3);animation:blink 2s infinite;}
+.quota-banner svg{width:16px;height:16px;flex-shrink:0;}
+
+/* ── FLASH MESSAGES ── */
+.flash{padding:10px 16px;margin:0 0 4px;border-radius:4px;font-size:12px;font-family:var(--mono);display:flex;align-items:center;gap:8px;}
+.flash.success{background:#001a0d;color:var(--c4);border:1px solid #002a18;}
+.flash.error{background:#1a0010;color:var(--c5);border:1px solid #2a0018;}
+
+/* ── KPI ROW ── */
+.kpi-row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;}
+.kpi{background:var(--panel);border:1px solid var(--border);border-top:2px solid;padding:14px 16px;position:relative;overflow:hidden;border-radius:4px;transition:border-color .2s,box-shadow .2s;}
+.kpi:hover{box-shadow:0 0 20px -5px currentColor;}
+.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(0deg,rgba(0,0,0,.3),transparent);pointer-events:none;}
+.kpi-label{font-size:9px;color:#4a7a9a;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:var(--mono);}
+.kpi-value{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1;}
+.kpi-delta{font-size:9px;margin-top:5px;font-family:var(--mono);}
+.kpi-minibar{height:3px;background:#0a1a2a;margin-top:10px;border-radius:2px;}
+.kpi-minifill{height:100%;border-radius:2px;transition:width 1s ease;}
+.kpi.blue{border-top-color:var(--c1);}.kpi.blue .kpi-value{color:var(--c1);}
+.kpi.green{border-top-color:var(--c4);}.kpi.green .kpi-value{color:var(--c4);}
+.kpi.orange{border-top-color:var(--c3);}.kpi.orange .kpi-value{color:var(--c3);}
+.kpi.red{border-top-color:var(--c5);}.kpi.red .kpi-value{color:var(--c5);}
+.kpi.cyan{border-top-color:#00ffee;}.kpi.cyan .kpi-value{color:#00ffee;}
+.kpi.purple{border-top-color:var(--c6);}.kpi.purple .kpi-value{color:var(--c6);}
+.corner{position:absolute;width:8px;height:8px;opacity:.5;}
+.tl{top:0;left:0;border-top:1px solid var(--c1);border-left:1px solid var(--c1);}
+.tr{top:0;right:0;border-top:1px solid var(--c1);border-right:1px solid var(--c1);}
+.bl{bottom:0;left:0;border-bottom:1px solid var(--c1);border-left:1px solid var(--c1);}
+.br{bottom:0;right:0;border-bottom:1px solid var(--c1);border-right:1px solid var(--c1);}
+
+/* ── PANEL ── */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:4px;overflow:hidden;position:relative;}
+.panel::before{content:'';position:absolute;top:0;left:0;width:2px;height:100%;background:linear-gradient(180deg,var(--c1) 0%,transparent 80%);opacity:.6;}
+.scan-line{position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#00d4ff44,transparent);animation:scan 5s linear infinite;pointer-events:none;z-index:1;}
+@keyframes scan{0%{top:0%;}100%{top:100%;}}
+.ph{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#030c18;}
+.ph-title{font-size:11px;font-weight:700;color:#c0e8ff;letter-spacing:1px;text-transform:uppercase;font-family:var(--sans);}
+.ph-right{display:flex;align-items:center;gap:8px;}
+.ph-badge{font-size:9px;padding:2px 8px;border:1px solid;border-radius:3px;font-family:var(--mono);}
+.ph-badge.live{border-color:var(--c4);color:var(--c4);background:#001a0d;animation:blink 1.5s infinite;}
+.ph-badge.blue{border-color:var(--c1);color:var(--c1);background:#001822;}
+.ph-badge.orange{border-color:var(--c3);color:var(--c3);background:#1a0500;}
+.ph-badge.purple{border-color:var(--c6);color:var(--c6);background:#0a0018;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* ── GRID ROWS ── */
+.row2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;}
+.row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+.row4{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.7fr);gap:14px;}
+
+/* ── UPLOAD ZONE ── */
+.upload-zone{margin:14px;border:2px dashed #0a3a5a;border-radius:6px;padding:22px;text-align:center;cursor:pointer;background:#020d18;transition:all .3s;position:relative;overflow:hidden;}
+.upload-zone:hover{border-color:var(--c1);background:#001520;}
+.upload-zone.drag-over{border-color:var(--c4);background:#001a0d;box-shadow:0 0 30px -10px var(--c4);}
+.uz-icon{width:44px;height:44px;border:1px solid #0a3a5a;border-radius:6px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;transition:border-color .3s;}
+.upload-zone:hover .uz-icon{border-color:var(--c1);}
+.uz-icon svg{width:22px;height:22px;}
+.uz-text{font-size:13px;color:#6a9ab8;font-family:var(--sans);}
+.uz-sub{font-size:10px;color:#2a5a7a;font-family:var(--mono);margin-top:4px;}
+.btn-up{background:transparent;color:var(--c1);border:1px solid var(--c1);padding:8px 24px;font-size:11px;font-weight:600;cursor:pointer;margin-top:12px;border-radius:3px;letter-spacing:1px;transition:all .2s;font-family:var(--mono);text-transform:uppercase;}
+.btn-up:hover{background:#001822;box-shadow:0 0 15px -5px var(--c1);}
+/* batch file preview list */
+.batch-list{margin:8px 14px 0;display:none;}
+.batch-item{display:flex;justify-content:space-between;padding:4px 10px;background:#020d18;border:1px solid #0a2a4a;border-radius:3px;margin-bottom:3px;font-size:10px;font-family:var(--mono);color:#6a9ab8;}
+.batch-item span{color:#2a5a7a;}
+
+/* ── SEARCH & FILTER BAR ── */
+.search-bar{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#030c18;align-items:center;flex-wrap:wrap;}
+.search-input-wrap{flex:1;min-width:160px;position:relative;}
+.search-input-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:#4a7a9a;}
+.search-input{width:100%;background:#020d18;border:1px solid #0a2a4a;color:#a0d4ff;padding:6px 10px 6px 32px;font-size:11px;font-family:var(--mono);border-radius:3px;outline:none;transition:border-color .2s;}
+.search-input:focus{border-color:var(--c1);}
+.search-input::placeholder{color:#2a5a7a;}
+.filter-btn{font-size:10px;padding:5px 12px;border:1px solid #0a2a4a;background:transparent;color:#4a7a9a;cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;letter-spacing:.5px;}
+.filter-btn:hover,.filter-btn.active{border-color:var(--c1);color:var(--c1);background:#001822;}
+.filter-btn.f-deleted.active{border-color:var(--c5);color:var(--c5);background:#1a0010;}
+.filter-btn.f-recovered.active{border-color:var(--c4);color:var(--c4);background:#001a0d;}
+.export-btn{font-size:10px;padding:5px 12px;border:1px solid var(--c3);background:transparent;color:var(--c3);cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;letter-spacing:.5px;margin-left:auto;}
+.export-btn:hover{background:#1a0500;box-shadow:0 0 12px -4px var(--c3);}
+
+/* ── FILE LIST ── */
+.file-row{display:flex;align-items:center;padding:9px 16px;border-bottom:1px solid #030d1a;gap:8px;transition:background .15s;animation:rowIn .3s ease;}
+@keyframes rowIn{from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:translateX(0);}}
+.file-row:last-child{border-bottom:none;}
+.file-row:hover{background:#030c18;}
+.file-ext{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;font-family:var(--mono);flex-shrink:0;border:1px solid;border-radius:3px;}
+.ext-pdf{border-color:#ff3366;color:#ff3366;background:#1a0010;}
+.ext-sql{border-color:#00ff88;color:#00ff88;background:#001a0d;}
+.ext-json{border-color:#00d4ff;color:#00d4ff;background:#001822;}
+.ext-zip{border-color:#ff6b00;color:#ff6b00;background:#1a0500;}
+.ext-txt{border-color:#4a7a9a;color:#4a7a9a;background:#040f1c;}
+.ext-py{border-color:#aa44ff;color:#aa44ff;background:#0a0018;}
+.ext-csv{border-color:#00ffee;color:#00ffee;background:#001a1a;}
+.ext-default{border-color:#2a5a7a;color:#2a5a7a;background:#020d18;}
+.fi{flex:1;min-width:0;}
+.fn{font-size:12px;color:#c0e8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans);}
+.fm{font-size:10px;color:#2a5a7a;margin-top:2px;font-family:var(--mono);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.enc-badge{font-size:9px;padding:1px 6px;border:1px solid #aa44ff44;border-radius:2px;color:#aa44ff;font-family:var(--mono);background:#0a0018;}
+/* SHA-256 pill */
+.hash-pill{font-size:9px;padding:1px 7px;border:1px solid #0a3a5a;border-radius:2px;color:#0a5a7a;font-family:var(--mono);background:#020d18;cursor:pointer;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:all .2s;display:inline-block;}
+.hash-pill:hover{border-color:var(--c1);color:var(--c1);}
+/* integrity badge */
+.int-badge{font-size:9px;padding:1px 7px;border:1px solid;border-radius:2px;font-family:var(--mono);cursor:pointer;}
+.int-badge.pass{border-color:#00ff8855;color:var(--c4);background:#001a0d;}
+.int-badge.fail{border-color:#ff336655;color:var(--c5);background:#1a0010;}
+.int-badge.unk{border-color:#2a5a7a;color:#2a5a7a;background:#020d18;}
+.sbadge{font-size:9px;padding:3px 8px;border:1px solid;border-radius:3px;font-family:var(--mono);letter-spacing:.5px;flex-shrink:0;}
+.s-ok{border-color:var(--c4);color:var(--c4);background:#001a0d;}
+.s-del{border-color:var(--c5);color:var(--c5);background:#1a0010;}
+.s-rec{border-color:var(--c1);color:var(--c1);background:#001822;}
+.s-arc{border-color:var(--c3);color:var(--c3);background:#1a0500;}
+.abtn{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+.ab{font-size:10px;padding:3px 9px;border:1px solid #0a2a4a;background:transparent;color:#4a7a9a;cursor:pointer;text-decoration:none;display:inline-block;border-radius:3px;font-family:var(--mono);transition:all .2s;}
+.ab.g:hover{border-color:var(--c4);color:var(--c4);background:#001a0d;}
+.ab.r:hover{border-color:var(--c5);color:var(--c5);background:#1a0010;}
+.ab.b:hover{border-color:var(--c1);color:var(--c1);background:#001822;}
+.ab.p:hover{border-color:var(--c6);color:var(--c6);background:#0a0018;}
+
+/* ── STORAGE ── */
+.stor-bar{height:4px;background:#0a1a2a;margin:8px 16px 5px;border-radius:2px;}
+.stor-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--c1),var(--c4));transition:width .8s ease;}
+.stor-lbl{display:flex;justify-content:space-between;padding:0 16px 12px;font-size:9px;color:#2a5a7a;font-family:var(--mono);}
+
+/* ── RECOVERY OBJECTIVES ── */
+.rpo-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#0a2a4a;}
+.rpo-cell{background:var(--panel);padding:13px 14px;}
+.rpo-label{font-size:9px;color:#2a5a7a;letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px;font-family:var(--mono);}
+.rpo-val{font-size:20px;font-weight:700;font-family:var(--mono);}
+.rpo-sub{font-size:9px;font-family:var(--mono);margin-top:2px;}
+
+/* ── HEALTH ── */
+.health-row{display:flex;align-items:center;padding:8px 16px;border-bottom:1px solid #030d1a;gap:8px;}
+.health-row:last-child{border-bottom:none;}
+.h-svc{font-size:10px;color:#6a9ab8;min-width:96px;font-family:var(--mono);}
+.h-bar{flex:1;height:3px;background:#0a1a2a;border-radius:2px;overflow:hidden;}
+.h-fill{height:100%;border-radius:2px;transition:width 1s ease;}
+.h-val{font-size:10px;font-family:var(--mono);min-width:40px;text-align:right;}
+.h-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* ── VERSION HISTORY ── */
+.ver-timeline{padding:14px 16px;}
+.ver-item{display:flex;gap:10px;margin-bottom:12px;}
+.ver-item:last-child{margin-bottom:0;}
+.ver-line{display:flex;flex-direction:column;align-items:center;width:12px;}
+.ver-dot{width:9px;height:9px;border:1px solid;flex-shrink:0;border-radius:1px;}
+.ver-connector{flex:1;width:1px;background:#0a2a4a;margin:2px 0;}
+.ver-name{font-size:11px;color:#a0c8e0;font-family:var(--mono);}
+.ver-meta{font-size:10px;color:#2a5a7a;font-family:var(--mono);margin-top:2px;}
+.ver-tag{font-size:9px;padding:2px 7px;border:1px solid;font-family:var(--mono);display:inline-block;margin-top:4px;border-radius:3px;}
+
+/* ── THREAT LOG ── */
+.threat-item{padding:9px 16px;border-bottom:1px solid #030d1a;display:flex;gap:10px;align-items:center;}
+.threat-item:last-child{border-bottom:none;}
+.threat-sev{width:3px;border-radius:1px;align-self:stretch;flex-shrink:0;}
+.threat-name{font-size:11px;color:#a0c8e0;font-family:var(--mono);}
+.threat-desc{font-size:10px;color:#2a5a7a;font-family:var(--mono);margin-top:1px;}
+.threat-badge{font-size:9px;padding:2px 7px;border:1px solid;font-family:var(--mono);border-radius:3px;margin-top:3px;display:inline-block;}
+.threat-time{font-size:10px;color:#2a5a7a;font-family:var(--mono);flex-shrink:0;}
+
+/* ── LOG ── */
+.log-list{padding:10px 16px;max-height:200px;overflow-y:auto;}
+.log-line{font-size:10px;padding:3px 0;border-bottom:1px solid #030d1a;display:flex;gap:8px;font-family:var(--mono);}
+.log-line:last-child{border-bottom:none;}
+.log-time{color:#0a5a7a;flex-shrink:0;min-width:54px;}
+.log-level{flex-shrink:0;min-width:38px;}
+.log-level.ok{color:var(--c4);}
+.log-level.err{color:var(--c5);}
+.log-level.inf{color:var(--c1);}
+.log-level.wrn{color:var(--c3);}
+.log-msg{color:#4a8aaa;}
+.log-cursor{animation:blink 1s infinite;color:var(--c4);}
+
+/* ── ARCH FLOW ── */
+.arch-flow{display:flex;align-items:center;padding:16px 24px;gap:4px;flex-wrap:wrap;justify-content:center;}
+.arch-nd{text-align:center;min-width:64px;}
+.arch-box{border:1px solid var(--border);padding:8px 6px;margin-bottom:5px;background:#020d18;border-radius:4px;transition:all .2s;}
+.arch-box:hover{border-color:var(--c1);box-shadow:0 0 12px -4px var(--c1);}
+.arch-box.hl{border-color:var(--c1);}
+.arch-box.active{border-color:var(--c4);}
+.arch-ic{font-size:18px;}
+.arch-lbl{font-size:10px;color:#6a9ab8;font-weight:700;font-family:var(--mono);}
+.arch-sub{font-size:9px;color:#2a5a7a;font-family:var(--mono);}
+.arch-arr{color:#0a3a5a;font-size:18px;}
+.arch-tags{display:flex;gap:8px;padding:0 16px 14px;flex-wrap:wrap;}
+.arch-tag{font-size:9px;padding:3px 10px;border:1px solid;border-radius:3px;font-family:var(--mono);}
+.tag-o{border-color:#ff6b0055;color:var(--c3);background:#1a050022;}
+.tag-p{border-color:#aa44ff55;color:#aa44ff;background:#0a001a22;}
+.tag-g{border-color:#00ff8855;color:var(--c4);background:#001a0d22;}
+.tag-b{border-color:#00d4ff55;color:var(--c1);background:#00182222;}
+
+/* ── MAP ── */
+.map-wrap{padding:12px 16px;}
+.map-svg{width:100%;height:110px;}
+.map-ping{animation:ping 2s infinite;}
+@keyframes ping{0%,100%{r:4;opacity:1;}50%{r:8;opacity:.3;}}
+.map-ring{animation:ring 2.5s infinite;}
+@keyframes ring{0%{r:6;opacity:.8;}100%{r:18;opacity:0;}}
+
+/* ── PROGRESS ── */
+.progress-wrap{padding:12px 16px;}
+.prog-item{margin-bottom:10px;}
+.prog-item:last-child{margin-bottom:0;}
+.prog-header{display:flex;justify-content:space-between;margin-bottom:4px;}
+.prog-name{font-size:11px;font-family:var(--mono);color:#6a9ab8;}
+.prog-pct{font-size:11px;font-family:var(--mono);}
+.prog-bar{height:4px;background:#0a1a2a;border-radius:2px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:2px;transition:width .4s ease;}
+
+/* ── ANALYTICS ── */
+.analytics-wrap{padding:14px 16px;}
+.chart-legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:#6a9ab8;}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* ── PITR PANEL ── */
+.pitr-wrap{padding:14px 16px;}
+.pitr-input-row{display:flex;gap:8px;margin-bottom:12px;}
+.pitr-input{flex:1;background:#020d18;border:1px solid #0a2a4a;color:#a0d4ff;padding:7px 12px;font-size:11px;font-family:var(--mono);border-radius:3px;outline:none;transition:border-color .2s;}
+.pitr-input:focus{border-color:var(--c1);}
+.pitr-btn{font-size:10px;padding:7px 16px;border:1px solid var(--c6);background:transparent;color:var(--c6);cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;white-space:nowrap;}
+.pitr-btn:hover{background:#0a0018;box-shadow:0 0 12px -4px var(--c6);}
+.pitr-result{background:#020d18;border:1px solid #0a2a4a;border-radius:3px;padding:10px;font-size:10px;font-family:var(--mono);max-height:160px;overflow-y:auto;color:#4a8aaa;}
+.pitr-file-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #030d1a;gap:8px;}
+.pitr-file-row:last-child{border-bottom:none;}
+
+/* ── MODAL BASE ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:#00000099;backdrop-filter:blur(4px);z-index:999;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:#040f1c;border:1px solid var(--c1);border-radius:6px;width:560px;max-width:95vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;animation:modalIn .3s ease;}
+@keyframes modalIn{from{opacity:0;transform:scale(.95);}to{opacity:1;transform:scale(1);}}
+.modal-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#030c18;}
+.modal-head h2{font-size:13px;font-weight:700;color:#e0f4ff;letter-spacing:1px;font-family:var(--sans);}
+.modal-close{background:none;border:none;color:#4a7a9a;cursor:pointer;font-size:18px;line-height:1;padding:0 2px;transition:color .2s;}
+.modal-close:hover{color:var(--c5);}
+.modal-body{padding:20px 18px;overflow-y:auto;flex:1;}
+.modal-btns{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border);background:#030c18;}
+.btn-primary{flex:1;background:var(--c1);color:#001822;border:none;padding:10px;font-size:12px;font-weight:700;cursor:pointer;border-radius:3px;letter-spacing:1px;font-family:var(--mono);transition:all .2s;text-transform:uppercase;}
+.btn-primary:hover{box-shadow:0 0 20px -5px var(--c1);}
+.btn-secondary{background:transparent;color:#4a7a9a;border:1px solid #0a2a4a;padding:10px 18px;font-size:11px;cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;}
+.btn-secondary:hover{border-color:var(--c5);color:var(--c5);}
+.btn-drill{font-size:10px;padding:5px 14px;border:1px solid var(--c5);background:transparent;color:var(--c5);cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;letter-spacing:.5px;}
+.btn-drill:hover{background:#1a0010;box-shadow:0 0 12px -4px var(--c5);}
+
+/* ── DR DRILL MODAL ── */
+.drill-steps{display:flex;align-items:center;gap:4px;margin-bottom:22px;}
+.drill-step{flex:1;height:3px;background:#0a1a2a;border-radius:2px;transition:background .4s;}
+.drill-step.done{background:var(--c4);}
+.drill-step.active{background:var(--c1);}
+.drill-label{display:flex;justify-content:space-between;margin-bottom:16px;}
+.drill-label span{font-size:9px;font-family:var(--mono);color:#2a5a7a;}
+.drill-label span.active-lbl{color:var(--c1);}
+.drill-content{display:none;}
+.drill-content.active{display:block;}
+.drill-title{font-size:14px;font-weight:600;color:#c0e8ff;margin-bottom:8px;font-family:var(--sans);}
+.drill-desc{font-size:11px;color:#6a9ab8;line-height:1.6;font-family:var(--mono);}
+.drill-check{display:flex;gap:8px;align-items:flex-start;margin-top:10px;}
+.drill-check-item{flex:1;background:#030c18;border:1px solid #0a2a4a;border-radius:4px;padding:10px 12px;}
+.drill-check-item.pass{border-color:var(--c4);}
+.drill-check-item.fail{border-color:var(--c5);}
+.drill-check-label{font-size:10px;font-family:var(--mono);color:#6a9ab8;margin-bottom:4px;}
+.drill-check-val{font-size:13px;font-family:var(--mono);font-weight:700;}
+.drill-check-item.pass .drill-check-val{color:var(--c4);}
+.drill-check-item.fail .drill-check-val{color:var(--c5);}
+.drill-log{background:#020d18;border:1px solid #0a2a4a;border-radius:3px;padding:10px;margin-top:12px;font-size:10px;font-family:var(--mono);color:#4a8aaa;max-height:120px;overflow-y:auto;line-height:1.7;}
+.drill-log .ok{color:var(--c4);}
+.drill-log .err{color:var(--c5);}
+.drill-log .inf{color:var(--c1);}
+.drill-result{text-align:center;padding:14px 0;}
+.drill-result-icon{font-size:48px;margin-bottom:12px;}
+.drill-result-title{font-size:16px;font-weight:700;color:var(--c4);margin-bottom:8px;font-family:var(--sans);}
+.drill-result-sub{font-size:11px;color:#6a9ab8;font-family:var(--mono);line-height:1.6;}
+.drill-score{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px;}
+.score-cell{background:#030c18;border:1px solid #0a2a4a;border-radius:3px;padding:10px;text-align:center;}
+.score-label{font-size:9px;color:#2a5a7a;font-family:var(--mono);margin-bottom:4px;}
+.score-val{font-size:15px;font-weight:700;font-family:var(--mono);}
+
+/* ── VERSION HISTORY MODAL ── */
+.ver-modal{border-color:var(--c6);}
+.ver-modal .panel::before{background:linear-gradient(180deg,var(--c6) 0%,transparent 80%);}
+.ver-list-wrap{max-height:320px;overflow-y:auto;}
+.ver-entry{display:flex;align-items:center;padding:9px 16px;border-bottom:1px solid #030d1a;gap:8px;}
+.ver-entry:last-child{border-bottom:none;}
+.ver-entry:hover{background:#030c18;}
+.ver-badge{font-size:9px;padding:2px 7px;border:1px solid;border-radius:3px;font-family:var(--mono);flex-shrink:0;}
+.ver-latest{border-color:var(--c4);color:var(--c4);background:#001a0d;}
+.ver-old{border-color:#2a5a7a;color:#2a5a7a;background:#020d18;}
+.ver-info{flex:1;}
+.ver-id{font-size:10px;color:#a0c8e0;font-family:var(--mono);}
+.ver-date{font-size:10px;color:#2a5a7a;font-family:var(--mono);}
+.ver-size{font-size:10px;color:#4a7a9a;font-family:var(--mono);flex-shrink:0;}
+.ver-dl-btn{font-size:10px;padding:3px 10px;border:1px solid #0a2a4a;background:transparent;color:#4a7a9a;cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;text-decoration:none;}
+.ver-dl-btn:hover{border-color:var(--c6);color:var(--c6);background:#0a0018;}
+
+/* ── INTEGRITY VERIFY MODAL ── */
+.int-modal{border-color:var(--c4);}
+.hash-display{background:#020d18;border:1px solid #0a2a4a;border-radius:3px;padding:12px;font-size:10px;font-family:var(--mono);word-break:break-all;margin:10px 0;}
+.hash-display .label{color:#2a5a7a;margin-bottom:4px;}
+.hash-display .value{color:var(--c1);}
+.hash-display .value.match{color:var(--c4);}
+.hash-display .value.mismatch{color:var(--c5);}
+.int-result-box{text-align:center;padding:16px;background:#020d18;border:1px solid #0a2a4a;border-radius:4px;margin-top:12px;}
+.int-result-icon{font-size:32px;margin-bottom:8px;}
+.int-result-text{font-size:13px;font-weight:700;font-family:var(--mono);}
+.int-result-sub{font-size:10px;color:#6a9ab8;font-family:var(--mono);margin-top:4px;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:1100px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:900px){.kpi-row{grid-template-columns:repeat(2,1fr);}.row2,.row3,.row4{grid-template-columns:1fr;}}
+
+/* ── TAGS ── */
+.tag-input-row{display:flex;align-items:center;gap:8px;padding:0 14px 12px;flex-wrap:wrap;}
+.tag-input{flex:1;background:#020d18;border:1px solid #0a2a4a;color:#a0d4ff;padding:5px 10px;font-size:10px;font-family:var(--mono);border-radius:3px;outline:none;min-width:120px;}
+.tag-input:focus{border-color:var(--c7);}
+.tag-input::placeholder{color:#2a5a7a;}
+.tag-label{font-size:10px;color:#4a7a9a;font-family:var(--mono);white-space:nowrap;}
+.file-tag{font-size:9px;padding:1px 7px;border:1px solid var(--c7);border-radius:10px;color:var(--c7);background:#1a1400;font-family:var(--mono);cursor:pointer;display:inline-block;margin:1px 2px;}
+.file-tag:hover{background:#2a2000;}
+.tag-filter-row{display:flex;gap:6px;padding:0 16px 10px;flex-wrap:wrap;align-items:center;}
+.tag-filter-label{font-size:9px;color:#2a5a7a;font-family:var(--mono);}
+.tag-filter-btn{font-size:9px;padding:2px 8px;border:1px solid #0a2a4a;background:transparent;color:#4a7a9a;cursor:pointer;border-radius:10px;font-family:var(--mono);transition:all .2s;}
+.tag-filter-btn.active{border-color:var(--c7);color:var(--c7);background:#1a1400;}
+
+/* ── PREVIEW MODAL ── */
+.preview-modal{border-color:var(--c1);width:700px;max-width:95vw;}
+.preview-body{padding:14px;text-align:center;min-height:300px;display:flex;align-items:center;justify-content:center;background:#020d18;}
+.preview-body img{max-width:100%;max-height:500px;border-radius:4px;}
+.preview-body iframe{width:100%;height:500px;border:none;border-radius:4px;}
+.preview-body .no-preview{color:#2a5a7a;font-family:var(--mono);font-size:11px;}
+
+/* ── SNS MANAGEMENT PANEL ── */
+.sns-item{display:flex;align-items:center;padding:8px 14px;border-bottom:1px solid #030d1a;gap:8px;font-family:var(--mono);font-size:10px;}
+.sns-item:last-child{border-bottom:none;}
+.sns-email{flex:1;color:#a0c8e0;}
+.sns-status{font-size:9px;padding:2px 6px;border:1px solid;border-radius:2px;}
+.sns-confirmed{border-color:var(--c4);color:var(--c4);background:#001a0d;}
+.sns-pending{border-color:var(--c3);color:var(--c3);background:#1a0500;}
+.sns-unsub-btn{font-size:9px;padding:2px 8px;border:1px solid #2a1a1a;background:transparent;color:#6a3a3a;cursor:pointer;border-radius:2px;font-family:var(--mono);transition:all .2s;}
+.sns-unsub-btn:hover{border-color:var(--c5);color:var(--c5);}
+.sns-add-row{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--border);}
+.sns-email-in{flex:1;background:#020d18;border:1px solid #0a2a4a;color:#a0d4ff;padding:6px 10px;font-size:10px;font-family:var(--mono);border-radius:3px;outline:none;}
+.sns-email-in:focus{border-color:var(--c4);}
+.sns-email-in::placeholder{color:#2a5a7a;}
+.sns-sub-btn{font-size:10px;padding:6px 14px;border:1px solid var(--c4);background:transparent;color:var(--c4);cursor:pointer;border-radius:3px;font-family:var(--mono);transition:all .2s;white-space:nowrap;}
+.sns-sub-btn:hover{background:#001a0d;}
+.audit-link{font-size:10px;padding:5px 12px;border:1px solid var(--c6);background:transparent;color:var(--c6);cursor:pointer;border-radius:3px;font-family:var(--mono);text-decoration:none;transition:all .2s;letter-spacing:.5px;}
+.audit-link:hover{background:#0a0018;}</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ TOPBAR -->
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">
+      <svg viewBox="0 0 20 20" fill="none">
+        <rect x="2" y="2" width="7" height="7" stroke="#00d4ff" stroke-width="1.5"/>
+        <rect x="11" y="2" width="7" height="7" stroke="#00d4ff" stroke-width="1" opacity=".5"/>
+        <rect x="2" y="11" width="7" height="7" stroke="#00d4ff" stroke-width="1" opacity=".5"/>
+        <rect x="11" y="11" width="7" height="7" stroke="#00d4ff" stroke-width="1" opacity=".2"/>
+      </svg>
+    </div>
+    <div class="tb-title">
+      <h1>Backup &amp; Disaster Recovery System</h1>
+      <p>SIT-TUMAKURU · CLOUD-COMPUTING-ABL · BATCH-B15 · AWS AP-SOUTH-1</p>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="sys-status"><div class="pulse"></div><span>ALL SYSTEMS NOMINAL</span></div>
+    <span class="tb-badge orange">AES-256 ON</span>
+    <span class="tb-badge purple">SHA-256 ✓</span>
+    <span class="tb-badge blue">VERSIONING ON</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ MAIN -->
+<div class="main">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}{% endif %}
+  {% endwith %}
+
+  <!-- ── STORAGE QUOTA WARNING BANNER ── -->
+  {% if quota_warning %}
+  <div class="quota-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    ⚠ STORAGE QUOTA WARNING: {{ storage_percent }}% of 5 GB free tier used. Consider archiving old files to S3 Glacier or upgrading your storage tier.
+  </div>
+  {% endif %}
+
+  <!-- ── KPI ROW ── -->
+  <div class="kpi-row">
+    <div class="kpi blue">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="kpi-label">Total Backups</div>
+      <div class="kpi-value">{{ '%03d'|format(files|length) }}</div>
+      <div class="kpi-delta" style="color:var(--c1);">↑ stored in S3</div>
+      <div class="kpi-minibar"><div class="kpi-minifill" style="width:{{ [files|length*8,100]|min }}%;background:var(--c1);"></div></div>
+    </div>
+    <div class="kpi green">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="kpi-label">Recovery Rate</div>
+      <div class="kpi-value">100%</div>
+      <div class="kpi-delta" style="color:var(--c4);">✓ target met</div>
+      <div class="kpi-minibar"><div class="kpi-minifill" style="width:100%;background:var(--c4);"></div></div>
+    </div>
+    <div class="kpi orange">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="kpi-label">Disasters Sim.</div>
+      <div class="kpi-value">{{ '%03d'|format(disaster_count) }}</div>
+      <div class="kpi-delta" style="color:var(--c3);">⚠ test events</div>
+      <div class="kpi-minibar"><div class="kpi-minifill" style="width:{{ [disaster_count*15,100]|min }}%;background:var(--c3);"></div></div>
+    </div>
+    <div class="kpi red">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="kpi-label">Recovered</div>
+      <div class="kpi-value">{{ '%03d'|format(recovered_count) }}</div>
+      <div class="kpi-delta" style="color:var(--c5);">↺ restored</div>
+      <div class="kpi-minibar"><div class="kpi-minifill" style="width:{{ [recovered_count*20,100]|min }}%;background:var(--c5);"></div></div>
+    </div>
+    <div class="kpi cyan">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="kpi-label">Storage Used</div>
+      <div class="kpi-value">{{ total_size }}</div>
+      <div class="kpi-delta" style="color:#00ffee;">5 GB free tier</div>
+      <div class="kpi-minibar"><div class="kpi-minifill" style="width:{{ storage_percent }}%;background:#00ffee;"></div></div>
+    </div>
+    <div class="kpi purple">
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+      <div class="kpi-label">Encryption</div>
+      <div class="kpi-value">AES</div>
+      <div class="kpi-delta" style="color:var(--c6);">256-bit · SSE-S3</div>
+      <div class="kpi-minibar"><div class="kpi-minifill" style="width:100%;background:var(--c6);"></div></div>
+    </div>
+  </div>
+
+  <!-- ── ROW 2: Upload Console + Sidebar ── -->
+  <div class="row2">
+    <div class="panel">
+      <div class="scan-line"></div>
+      <div class="ph">
+        <span class="ph-title">File Backup Console</span>
+        <div class="ph-right">
+          <span class="ph-badge live">● LIVE</span>
+          <button class="btn-drill" onclick="openDrillModal()">⚡ Run DR Drill</button>
+        </div>
+      </div>
+
+      <!-- Search & Filter Bar -->
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input class="search-input" type="text" id="searchInput" placeholder="Search files by name..." oninput="filterFiles()">
+        </div>
+        <button class="filter-btn active" id="f-all" onclick="setFilter('all')">ALL</button>
+        <button class="filter-btn" id="f-backed_up" onclick="setFilter('backed_up')">BACKED UP</button>
+        <button class="filter-btn f-deleted" id="f-deleted_locally" onclick="setFilter('deleted_locally')">DELETED</button>
+        <button class="filter-btn f-recovered" id="f-recovered" onclick="setFilter('recovered')">RECOVERED</button>
+        <button class="export-btn" onclick="exportAuditLog()">⬇ Export Audit Log</button>
+        <a href="/audit" class="audit-link" style="margin-left:4px;">📋 Full Audit Log</a>
+      </div>
+
+      <!-- BATCH Upload Zone -->
+      <form method="post" action="/upload" enctype="multipart/form-data" id="uploadForm">
+        <div class="upload-zone" id="dropZone"
+             onclick="document.getElementById('fileInput').click()"
+             ondragover="handleDragOver(event)"
+             ondragleave="handleDragLeave(event)"
+             ondrop="handleDrop(event)">
+          <div class="uz-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="uz-text">Drop files here or click to browse</div>
+          <div class="uz-sub">Multiple files supported · Auto AES-256 encrypted · SHA-256 hashed · S3 versioned</div>
+          <!-- multiple attribute enables batch upload -->
+          <input type="file" name="file" id="fileInput" style="display:none;" multiple onchange="filesChosen(this)">
+          <button type="submit" class="btn-up" id="uploadBtn">UPLOAD TO S3</button>
+        </div>
+        <div class="tag-input-row">
+          <span class="tag-label">TAGS (optional):</span>
+          <input class="tag-input" type="text" name="tags" placeholder="e.g. config, weekly, important — comma separated">
+        </div>
+      </form>
+      <!-- Batch preview list -->
+      <div class="batch-list" id="batchList"></div>
+
+      <!-- Tag filter row (only shown when tags exist) -->
+      {% if all_tags %}
+      <div class="tag-filter-row">
+        <span class="tag-filter-label">FILTER BY TAG:</span>
+        <button class="tag-filter-btn active" onclick="setTagFilter('',this)">ALL</button>
+        {% for tag in all_tags %}
+        <button class="tag-filter-btn" onclick="setTagFilter('{{ tag }}',this)">{{ tag }}</button>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- File List -->
+      <div id="fileList">
+        {% if files %}
+          {% for file in files %}
+          <div class="file-row" data-status="{{ file.status }}" data-name="{{ file.filename|lower }}"
+               data-fileid="{{ file.file_id }}" data-s3key="{{ file.s3_key }}"
+               data-tags="{{ (file.tags or [])|join(',') }}">
+            {% set ext = file.filename.split('.')[-1]|upper if '.' in file.filename else 'BIN' %}
+            <div class="file-ext ext-{{ ext|lower if ext|lower in ['pdf','sql','json','zip','txt','py','csv'] else 'default' }}">{{ ext[:3] }}</div>
+            <div class="fi">
+              <div class="fn">{{ file.filename }}</div>
+              <div class="fm">
+                {{ file.file_size }} · {{ file.upload_time }}
+                <span class="enc-badge">AES-256</span>
+                {% if file.sha256 %}
+                <span class="hash-pill" title="{{ file.sha256 }}" onclick="copyHash('{{ file.sha256 }}', this)">{{ file.sha256[:14] }}…</span>
+                {% endif %}
+                {% if file.sha256 %}
+                  {% if file.integrity_ok is defined %}
+                    <span class="int-badge {% if file.integrity_ok %}pass{% else %}fail{% endif %}"
+                          onclick="verifyIntegrity('{{ file.file_id }}')">
+                      {% if file.integrity_ok %}✓ INTEGRITY{% else %}✗ MISMATCH{% endif %}
+                    </span>
+                  {% else %}
+                    <span class="int-badge unk" onclick="verifyIntegrity('{{ file.file_id }}')">↻ VERIFY</span>
+                  {% endif %}
+                {% endif %}
+              </div>
+              {% if file.tags %}
+              <div style="margin-top:4px;">
+                {% for tag in file.tags %}
+                <span class="file-tag" onclick="setTagFilter('{{ tag }}',null)">{{ tag }}</span>
+                {% endfor %}
+                <span class="file-tag" style="border-color:#0a3a5a;color:#2a5a7a;" onclick="openTagModal('{{ file.file_id }}','{{ (file.tags or [])|join(',') }}')">+ edit</span>
+              </div>
+              {% else %}
+              <div style="margin-top:2px;">
+                <span class="file-tag" style="border-color:#0a3a5a;color:#2a5a7a;" onclick="openTagModal('{{ file.file_id }}','')">+ add tags</span>
+              </div>
+              {% endif %}
+            </div>
+            {% if file.status == 'backed_up' %}<span class="sbadge s-ok">BACKED UP</span>
+            {% elif file.status == 'deleted_locally' %}<span class="sbadge s-del">DELETED</span>
+            {% elif file.status == 'recovered' %}<span class="sbadge s-rec">RECOVERED</span>
+            {% elif file.status == 'archived' %}<span class="sbadge s-arc">ARCHIVED</span>
+            {% endif %}
+            <div class="abtn">
+              <a href="/download/{{ file.file_id }}" class="ab g">Restore</a>
+              <button class="ab b" onclick="openPreviewModal('{{ file.file_id }}','{{ file.filename }}')">Preview</button>
+              <a href="/delete/{{ file.file_id }}" class="ab r" onclick="return confirm('Simulate disaster on this file?')">Disaster</a>
+              <button class="ab b" onclick="openVersionsModal('{{ file.file_id }}', '{{ file.filename }}')">Versions</button>
+              <button class="ab p" onclick="verifyIntegrity('{{ file.file_id }}')">Integrity</button>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p style="text-align:center;color:#2a5a7a;padding:30px;font-size:11px;font-family:var(--mono);">[ NO FILES BACKED UP YET — UPLOAD A FILE ABOVE ]</p>
+        {% endif %}
+      </div>
+      <div id="noResults" style="display:none;text-align:center;color:#2a5a7a;padding:20px;font-size:11px;font-family:var(--mono);">[ NO FILES MATCH FILTER ]</div>
+
+      <div class="stor-bar"><div class="stor-fill" style="width:{{ storage_percent }}%;"></div></div>
+      <div class="stor-lbl">
+        <span>USED: {{ total_size }} / 5 GB</span>
+        <span>GLACIER RULE: 30 DAYS · S3 VERSIONING: ON · SHA-256: ENABLED</span>
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Recovery Objectives</span></div>
+        <div class="rpo-grid">
+          <div class="rpo-cell"><div class="rpo-label">RTO</div><div class="rpo-val" style="color:var(--c4);">&lt;2min</div><div class="rpo-sub" style="color:var(--c4);">TARGET MET</div></div>
+          <div class="rpo-cell"><div class="rpo-label">RPO</div><div class="rpo-val" style="color:var(--c1);">5min</div><div class="rpo-sub" style="color:var(--c1);">BACKUP INTERVAL</div></div>
+          <div class="rpo-cell"><div class="rpo-label">Backup Freq.</div><div class="rpo-val" style="color:var(--c6);">5min</div><div class="rpo-sub" style="color:var(--c6);">CRON JOB</div></div>
+          <div class="rpo-cell"><div class="rpo-label">Archival</div><div class="rpo-val" style="color:var(--c3);">30d</div><div class="rpo-sub" style="color:var(--c3);">GLACIER RULE</div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Service Health</span><span class="ph-badge live">● MONITORING</span></div>
+        <div class="health-row"><span class="h-svc">EC2 t3.micro</span><div class="h-bar"><div class="h-fill" style="width:72%;background:var(--c4);"></div></div><span class="h-val" style="color:var(--c4);">72%</span><div class="h-dot" style="background:var(--c4);"></div></div>
+        <div class="health-row"><span class="h-svc">S3 Bucket</span><div class="h-bar"><div class="h-fill" style="width:5%;background:var(--c4);"></div></div><span class="h-val" style="color:var(--c4);">{{ total_size }}</span><div class="h-dot" style="background:var(--c4);"></div></div>
+        <div class="health-row"><span class="h-svc">DynamoDB</span><div class="h-bar"><div class="h-fill" style="width:{{ [files|length*4,100]|min }}%;background:var(--c4);"></div></div><span class="h-val" style="color:var(--c4);">{{ files|length }}rec</span><div class="h-dot" style="background:var(--c4);"></div></div>
+        <div class="health-row"><span class="h-svc">SNS Alerts</span><div class="h-bar"><div class="h-fill" style="width:100%;background:var(--c4);"></div></div><span class="h-val" style="color:var(--c4);">active</span><div class="h-dot" style="background:var(--c4);"></div></div>
+        <div class="health-row"><span class="h-svc">CloudWatch</span><div class="h-bar"><div class="h-fill" style="width:60%;background:var(--c1);"></div></div><span class="h-val" style="color:var(--c1);">active</span><div class="h-dot" style="background:var(--c1);"></div></div>
+        <div class="health-row"><span class="h-svc">S3 Glacier</span><div class="h-bar"><div class="h-fill" style="width:15%;background:var(--c3);"></div></div><span class="h-val" style="color:var(--c3);">rule set</span><div class="h-dot" style="background:var(--c3);"></div></div>
+        <div class="health-row"><span class="h-svc">IAM Roles</span><div class="h-bar"><div class="h-fill" style="width:100%;background:var(--c6);"></div></div><span class="h-val" style="color:var(--c6);">active</span><div class="h-dot" style="background:var(--c6);"></div></div>
+        <div class="health-row"><span class="h-svc">SHA-256 Hash</span><div class="h-bar"><div class="h-fill" style="width:100%;background:var(--c7);"></div></div><span class="h-val" style="color:var(--c7);">active</span><div class="h-dot" style="background:var(--c7);"></div></div>
+      </div>
+
+      <!-- ── POINT-IN-TIME RESTORE PANEL ── -->
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Point-in-Time Restore</span><span class="ph-badge purple">PITR</span></div>
+        <div class="pitr-wrap">
+          <div style="font-size:10px;color:#4a7a9a;font-family:var(--mono);margin-bottom:10px;">Pick a date &amp; time to see which files existed at that point</div>
+          <div class="pitr-input-row">
+            <input class="pitr-input" type="datetime-local" id="pitrInput">
+            <button class="pitr-btn" onclick="runPITR()">RESTORE VIEW</button>
+          </div>
+          <div class="pitr-result" id="pitrResult" style="display:none;"></div>
+        </div>
+      </div>
+
+      <!-- ── SNS NOTIFICATION MANAGEMENT ── -->
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Alert Subscriptions</span><span class="ph-badge orange">SNS</span></div>
+        <div id="snsList" style="min-height:40px;">
+          <div style="text-align:center;padding:16px;font-size:10px;color:#2a5a7a;font-family:var(--mono);">Loading subscriptions...</div>
+        </div>
+        <div class="sns-add-row">
+          <input class="sns-email-in" type="email" id="snsEmailIn" placeholder="Add email for alerts...">
+          <button class="sns-sub-btn" onclick="snsSubscribe()">+ Subscribe</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW 3: Activity + Storage Analytics + Alert Feed ── -->
+  <div class="row3">
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Backup Activity</span><span class="ph-badge live">● LIVE</span></div>
+      <div style="position:relative;height:140px;padding:12px 14px 0;">
+        <canvas id="actChart"></canvas>
+      </div>
+      <div style="display:flex;gap:16px;padding:8px 14px 12px;font-size:10px;font-family:var(--mono);">
+        <span style="display:flex;align-items:center;gap:4px;color:#2a5a7a;"><span style="width:10px;height:3px;background:var(--c1);border-radius:2px;display:inline-block;"></span>Backups</span>
+        <span style="display:flex;align-items:center;gap:4px;color:#2a5a7a;"><span style="width:10px;height:3px;background:var(--c4);border-radius:2px;display:inline-block;"></span>Recoveries</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Storage Analytics</span><span class="ph-badge blue">S3 BREAKDOWN</span></div>
+      <div class="analytics-wrap">
+        <div style="display:flex;align-items:center;gap:18px;">
+          <div style="position:relative;width:100px;height:100px;flex-shrink:0;">
+            <canvas id="storageChart" width="100" height="100"></canvas>
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;">
+              <div style="font-size:14px;font-weight:700;color:var(--c1);font-family:var(--mono);">{{ total_size }}</div>
+              <div style="font-size:8px;color:#2a5a7a;font-family:var(--mono);">USED</div>
+            </div>
+          </div>
+          <div style="flex:1;">
+            <div class="chart-legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c1);"></div>Active Files</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c3);"></div>Glacier Archive</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--c5);"></div>Deleted (Sim)</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#0a2a4a;"></div>Free Tier</div>
+            </div>
+            <div style="font-size:10px;font-family:var(--mono);color:#2a5a7a;margin-top:4px;">
+              <div>S3 Durability: <span style="color:var(--c4);">99.999999999%</span></div>
+              <div>Versioning: <span style="color:var(--c4);">Enabled</span></div>
+              <div>Lifecycle: <span style="color:var(--c3);">30d → Glacier</span></div>
+              <div>Integrity: <span style="color:var(--c7);">SHA-256 · All Objects</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Alert Feed</span><span class="ph-badge orange">{{ disaster_count }} EVENTS</span></div>
+      {% if alerts %}
+        {% for alert in alerts %}
+        <div class="threat-item">
+          <div class="threat-sev" style="background:{% if alert.type=='disaster' %}var(--c5){% elif alert.type=='recover' %}var(--c1){% else %}var(--c4){% endif %};"></div>
+          <div style="flex:1;">
+            <div class="threat-name">{{ alert.message[:50] }}</div>
+            <div class="threat-desc">{{ alert.time }}</div>
+            <span class="threat-badge" style="border-color:{% if alert.type=='disaster' %}var(--c5){% elif alert.type=='recover' %}var(--c1){% else %}var(--c4){% endif %};color:{% if alert.type=='disaster' %}var(--c5){% elif alert.type=='recover' %}var(--c1){% else %}var(--c4){% endif %};">{% if alert.type=='disaster' %}CRITICAL{% elif alert.type=='recover' %}RECOVERED{% else %}OK{% endif %}</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="threat-item">
+          <div class="threat-sev" style="background:var(--c4);"></div>
+          <div><div class="threat-name">No threats detected</div><div class="threat-desc">System operating normally</div></div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── ROW 4: Log + Map/Progress ── -->
+  <div class="row4">
+    <div class="panel">
+      <div class="ph"><span class="ph-title">System Log</span><span class="ph-badge live">● STREAMING</span></div>
+      <div class="log-list" id="logList">
+        <div class="log-line"><span class="log-time">INIT</span><span class="log-level inf">[INF]</span><span class="log-msg">bdrs.app started · Flask running on 0.0.0.0:80</span></div>
+        <div class="log-line"><span class="log-time">INIT</span><span class="log-level ok">[OK]</span><span class="log-msg">boto3.client · s3 · region=ap-south-1 · connected</span></div>
+        <div class="log-line"><span class="log-time">INIT</span><span class="log-level ok">[OK]</span><span class="log-msg">dynamodb.Table · bdrs-metadata · status=ACTIVE</span></div>
+        <div class="log-line"><span class="log-time">INIT</span><span class="log-level ok">[OK]</span><span class="log-msg">sns.client · bdrs-alerts · subscription confirmed</span></div>
+        <div class="log-line"><span class="log-time">INIT</span><span class="log-level ok">[OK]</span><span class="log-msg">sha256.module · integrity hashing · enabled</span></div>
+        <div class="log-line"><span class="log-time">INIT</span><span class="log-level ok">[OK]</span><span class="log-msg">s3.versioning · bdrs-backup-1si23ad037 · active <span class="log-cursor">_</span></span></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Data Region</span><span class="ph-badge blue">AP-SOUTH-1</span></div>
+        <div class="map-wrap">
+          <svg class="map-svg" viewBox="0 0 300 110" xmlns="http://www.w3.org/2000/svg">
+            <rect width="300" height="110" fill="#020d18"/>
+            <text x="8" y="14" font-size="8" font-family="Courier New,monospace" fill="#0a3a5a">INDIA REGION MAP</text>
+            <path d="M110,18 L115,16 L125,20 L135,18 L145,23 L150,28 L155,26 L160,33 L158,40 L162,48 L165,56 L160,63 L155,70 L148,76 L140,80 L135,86 L128,89 L121,84 L115,79 L109,72 L105,64 L103,56 L106,49 L103,42 L106,34 L109,26 Z" fill="#030c18" stroke="#0a3a5a" stroke-width="1"/>
+            <circle cx="152" cy="68" r="3" fill="none" stroke="#00d4ff" stroke-width="1"/>
+            <circle class="map-ring" cx="152" cy="68" r="6" fill="none" stroke="#00d4ff" stroke-width="0.5"/>
+            <circle class="map-ping" cx="152" cy="68" r="4" fill="#00d4ff" opacity=".8"/>
+            <text x="160" y="66" font-size="8" font-family="Courier New,monospace" fill="#00d4ff">MUMBAI</text>
+            <text x="160" y="74" font-size="7" font-family="Courier New,monospace" fill="#0a5a7a">AP-SOUTH-1</text>
+            <text x="160" y="82" font-size="7" font-family="Courier New,monospace" fill="#0a5a7a">S3 · EC2 · DYNAMO</text>
+            <text x="8" y="104" font-size="7" font-family="Courier New,monospace" fill="#0a3a5a">AZ: ap-south-1a/1b · LATENCY: ~12ms · DATA SOVEREIGNTY: INDIA</text>
+          </svg>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Backup Pipeline</span></div>
+        <div class="progress-wrap">
+          <div class="prog-item">
+            <div class="prog-header"><span class="prog-name">S3 Upload</span><span class="prog-pct" style="color:var(--c4);">100%</span></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--c4);"></div></div>
+          </div>
+          <div class="prog-item">
+            <div class="prog-header"><span class="prog-name">DynamoDB Index</span><span class="prog-pct" style="color:var(--c4);">100%</span></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--c4);"></div></div>
+          </div>
+          <div class="prog-item">
+            <div class="prog-header"><span class="prog-name">SNS Alert</span><span class="prog-pct" style="color:var(--c4);">100%</span></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--c4);"></div></div>
+          </div>
+          <div class="prog-item">
+            <div class="prog-header"><span class="prog-name">SHA-256 Integrity</span><span class="prog-pct" style="color:var(--c7);">100%</span></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--c7);"></div></div>
+          </div>
+          <div class="prog-item">
+            <div class="prog-header"><span class="prog-name">Checksum Verify</span><span class="prog-pct" style="color:var(--c1);" id="cpct">78%</span></div>
+            <div class="prog-bar"><div class="prog-fill" id="cbar" style="width:78%;background:var(--c1);"></div></div>
+          </div>
+          <div class="prog-item">
+            <div class="prog-header"><span class="prog-name">Glacier Lifecycle</span><span class="prog-pct" style="color:var(--c3);">ACTIVE</span></div>
+            <div class="prog-bar"><div class="prog-fill" style="width:30%;background:var(--c3);"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ARCH ROW ── -->
+  <div class="panel">
+    <div class="ph"><span class="ph-title">System Architecture</span><span class="ph-badge blue">IaaS · PaaS · SaaS</span></div>
+    <div class="arch-flow">
+      <div class="arch-nd"><div class="arch-box hl"><div class="arch-ic">🌐</div></div><div class="arch-lbl">Browser</div><div class="arch-sub">User input</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box hl"><div class="arch-ic">⚡</div></div><div class="arch-lbl">EC2</div><div class="arch-sub">Flask app</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box active"><div class="arch-ic">🪣</div></div><div class="arch-lbl">S3</div><div class="arch-sub">Versioned store</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box"><div class="arch-ic">🧊</div></div><div class="arch-lbl">Glacier</div><div class="arch-sub">Archival</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box active"><div class="arch-ic">🗄️</div></div><div class="arch-lbl">DynamoDB</div><div class="arch-sub">Metadata</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box"><div class="arch-ic">🔏</div></div><div class="arch-lbl">SHA-256</div><div class="arch-sub">Integrity</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box"><div class="arch-ic">📊</div></div><div class="arch-lbl">CloudWatch</div><div class="arch-sub">Monitor</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box"><div class="arch-ic">🔔</div></div><div class="arch-lbl">SNS</div><div class="arch-sub">Alerts</div></div>
+      <div class="arch-arr">→</div>
+      <div class="arch-nd"><div class="arch-box"><div class="arch-ic">🔐</div></div><div class="arch-lbl">IAM</div><div class="arch-sub">Security</div></div>
+    </div>
+    <div class="arch-tags">
+      <span class="arch-tag tag-o">IaaS: EC2 · S3 · EBS</span>
+      <span class="arch-tag tag-p">PaaS: DynamoDB · Lambda · Elastic Beanstalk</span>
+      <span class="arch-tag tag-g">SaaS: CloudWatch · SNS · AWS Backup</span>
+      <span class="arch-tag tag-b">Security: IAM · S3 Bucket Policies · AES-256 SSE-S3 · SHA-256 Integrity · S3 Versioning · PITR</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ PREVIEW MODAL -->
+<div class="modal-overlay" id="previewModal">
+  <div class="modal preview-modal">
+    <div class="modal-head" style="border-color:var(--c1)33;">
+      <h2 id="previewModalTitle">FILE PREVIEW</h2>
+      <button class="modal-close" onclick="closeModal('previewModal')">✕</button>
+    </div>
+    <div class="preview-body" id="previewBody">
+      <div class="no-preview">Loading preview...</div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('previewModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ TAG MODAL -->
+<div class="modal-overlay" id="tagModal">
+  <div class="modal" style="border-color:var(--c7);width:420px;">
+    <div class="modal-head">
+      <h2>🏷 FILE TAGGING</h2>
+      <button class="modal-close" onclick="closeModal('tagModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:11px;color:#6a9ab8;font-family:var(--mono);margin-bottom:14px;">Enter tags separated by commas. Tags help organise and filter your backups.</div>
+      <input id="tagModalInput" type="text" placeholder="e.g. config, weekly, critical" style="width:100%;background:#020d18;border:1px solid #0a2a4a;color:#a0d4ff;padding:9px 12px;font-size:11px;font-family:var(--mono);border-radius:3px;outline:none;transition:border-color .2s;" onfocus="this.style.borderColor='var(--c7)'" onblur="this.style.borderColor='#0a2a4a'">
+      <div id="tagModalMsg" style="font-size:10px;font-family:var(--mono);margin-top:8px;min-height:16px;"></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('tagModal')">Cancel</button>
+      <button class="btn-primary" style="background:var(--c7);color:#1a1400;" onclick="saveTags()">SAVE TAGS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ DR DRILL MODAL -->
+<div class="modal-overlay" id="drillModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>⚡ DISASTER RECOVERY DRILL</h2>
+      <button class="modal-close" onclick="closeDrillModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="drill-steps">
+        <div class="drill-step active" id="ds1"></div>
+        <div class="drill-step" id="ds2"></div>
+        <div class="drill-step" id="ds3"></div>
+        <div class="drill-step" id="ds4"></div>
+        <div class="drill-step" id="ds5"></div>
+      </div>
+      <div class="drill-label">
+        <span id="dl1" class="active-lbl">1. DETECT</span>
+        <span id="dl2">2. ASSESS</span>
+        <span id="dl3">3. ISOLATE</span>
+        <span id="dl4">4. RECOVER</span>
+        <span id="dl5">5. VERIFY</span>
+      </div>
+      <div class="drill-content active" id="drill-1">
+        <div class="drill-title">🔍 Step 1: Disaster Detection</div>
+        <div class="drill-desc">Simulating a catastrophic data loss event. All local storage has been corrupted. CloudWatch alarms are triggering. SNS notifications are being sent to the incident team.</div>
+        <div class="drill-check" style="margin-top:14px;">
+          <div class="drill-check-item fail"><div class="drill-check-label">LOCAL STORAGE</div><div class="drill-check-val">✗ CORRUPTED</div></div>
+          <div class="drill-check-item fail"><div class="drill-check-label">LOCAL DB</div><div class="drill-check-val">✗ OFFLINE</div></div>
+          <div class="drill-check-item pass"><div class="drill-check-label">S3 BACKUP</div><div class="drill-check-val">✓ INTACT</div></div>
+        </div>
+        <div class="drill-log">
+          <div><span class="err">[ERR]</span> local.storage · I/O error · device unreachable</div>
+          <div><span class="err">[ERR]</span> local.db · connection refused · port 5432</div>
+          <div><span class="inf">[INF]</span> cloudwatch · alarm triggered · DataLossDetected</div>
+          <div><span class="ok">[OK]</span> sns.publish · incident team notified · email sent</div>
+          <div><span class="ok">[OK]</span> s3.head_bucket · bdrs-backup-1si23ad037 · reachable</div>
+        </div>
+      </div>
+      <div class="drill-content" id="drill-2">
+        <div class="drill-title">📋 Step 2: Damage Assessment</div>
+        <div class="drill-desc">Running full assessment of affected systems. DynamoDB metadata is intact and lists all backed-up objects. SHA-256 hashes available for all files. Calculating RTO and RPO compliance.</div>
+        <div class="drill-check" style="margin-top:14px;">
+          <div class="drill-check-item pass"><div class="drill-check-label">DYNAMODB META</div><div class="drill-check-val">✓ INTACT</div></div>
+          <div class="drill-check-item pass"><div class="drill-check-label">S3 OBJECTS</div><div class="drill-check-val">✓ {{ files|length }} FILES</div></div>
+          <div class="drill-check-item pass"><div class="drill-check-label">RTO TARGET</div><div class="drill-check-val">✓ &lt;2min</div></div>
+        </div>
+        <div class="drill-log">
+          <div><span class="ok">[OK]</span> dynamodb.scan · bdrs-metadata · {{ files|length }} records found</div>
+          <div><span class="ok">[OK]</span> s3.list_objects · {{ files|length }} backup objects verified</div>
+          <div><span class="ok">[OK]</span> sha256.verify · all hashes loaded from DynamoDB</div>
+          <div><span class="inf">[INF]</span> assessment.rto · target=120s · status=compliant</div>
+          <div><span class="ok">[OK]</span> damage.report · ready for recovery initiation</div>
+        </div>
+      </div>
+      <div class="drill-content" id="drill-3">
+        <div class="drill-title">🔒 Step 3: System Isolation</div>
+        <div class="drill-desc">Isolating the affected EC2 instance from network. Enabling read-only mode on S3 bucket. IAM policies updated to prevent further writes to corrupted storage.</div>
+        <div class="drill-check" style="margin-top:14px;">
+          <div class="drill-check-item pass"><div class="drill-check-label">EC2 ISOLATED</div><div class="drill-check-val">✓ DONE</div></div>
+          <div class="drill-check-item pass"><div class="drill-check-label">S3 LOCKED</div><div class="drill-check-val">✓ READ-ONLY</div></div>
+          <div class="drill-check-item pass"><div class="drill-check-label">IAM UPDATED</div><div class="drill-check-val">✓ APPLIED</div></div>
+        </div>
+        <div class="drill-log">
+          <div><span class="ok">[OK]</span> iam.put_policy · deny_write · applied to ec2-role</div>
+          <div><span class="ok">[OK]</span> s3.put_bucket_acl · mode=read-only · applied</div>
+          <div><span class="ok">[OK]</span> ec2.modify_instance · network_isolation=true</div>
+          <div><span class="inf">[INF]</span> forensics.snapshot · ebs_volume · captured for analysis</div>
+          <div><span class="ok">[OK]</span> isolation.complete · safe to begin recovery</div>
+        </div>
+      </div>
+      <div class="drill-content" id="drill-4">
+        <div class="drill-title">🔄 Step 4: Data Recovery + Integrity Verification</div>
+        <div class="drill-desc">Restoring all files from S3 backup. SHA-256 hash verified for each file on restore. DynamoDB metadata used to reconstruct exact file structure. All {{ files|length }} objects being pulled from S3.</div>
+        <div style="margin-top:12px;">
+          <div class="prog-header" style="display:flex;justify-content:space-between;margin-bottom:6px;"><span style="font-size:11px;font-family:var(--mono);color:#6a9ab8;">Recovery Progress</span><span style="font-size:11px;font-family:var(--mono);color:var(--c4);" id="recPct">0%</span></div>
+          <div class="prog-bar" style="height:6px;"><div class="prog-fill" id="recBar" style="width:0%;background:linear-gradient(90deg,var(--c1),var(--c4));"></div></div>
+        </div>
+        <div class="drill-log" id="recLog">
+          <div><span class="inf">[INF]</span> s3.get_object · initiating batch restore · {{ files|length }} objects</div>
+          <div><span class="inf">[INF]</span> sha256.verify · checking hashes against DynamoDB records</div>
+        </div>
+      </div>
+      <div class="drill-content" id="drill-5">
+        <div class="drill-result">
+          <div class="drill-result-icon">✅</div>
+          <div class="drill-result-title">DISASTER RECOVERY COMPLETE</div>
+          <div class="drill-result-sub">All systems restored. Zero data loss confirmed.<br>SHA-256 integrity verified. RTO &amp; RPO targets met.</div>
+          <div class="drill-score">
+            <div class="score-cell"><div class="score-label">RTO ACHIEVED</div><div class="score-val" style="color:var(--c4);">1m 42s</div></div>
+            <div class="score-cell"><div class="score-label">DATA RECOVERED</div><div class="score-val" style="color:var(--c1);">100%</div></div>
+            <div class="score-cell"><div class="score-label">DRILL SCORE</div><div class="score-val" style="color:var(--c6);">A+</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeDrillModal()" id="cancelBtn">Cancel</button>
+      <button class="btn-primary" id="drillNextBtn" onclick="drillNext()">NEXT STEP →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ VERSION HISTORY MODAL -->
+<div class="modal-overlay" id="versionsModal">
+  <div class="modal ver-modal" style="border-color:var(--c6);width:600px;">
+    <div class="modal-head" style="border-color:var(--c6)33;">
+      <h2>📦 S3 VERSION HISTORY</h2>
+      <button class="modal-close" onclick="closeModal('versionsModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:#030c18;">
+        <div style="font-size:10px;font-family:var(--mono);color:#4a7a9a;" id="verModalFilename">Loading...</div>
+        <div style="font-size:9px;font-family:var(--mono);color:#2a5a7a;margin-top:2px;">S3 stores every version separately. Download any version to restore it.</div>
+      </div>
+      <div class="ver-list-wrap" id="verListWrap">
+        <div style="text-align:center;padding:30px;font-size:11px;font-family:var(--mono);color:#2a5a7a;">Loading versions from S3...</div>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('versionsModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ INTEGRITY MODAL -->
+<div class="modal-overlay" id="integrityModal">
+  <div class="modal int-modal" style="border-color:var(--c4);width:520px;">
+    <div class="modal-head" style="border-color:var(--c4)33;">
+      <h2>🔏 FILE INTEGRITY CHECK</h2>
+      <button class="modal-close" onclick="closeModal('integrityModal')">✕</button>
+    </div>
+    <div class="modal-body" id="integrityModalBody">
+      <div style="text-align:center;padding:30px;font-size:11px;font-family:var(--mono);color:#2a5a7a;">Fetching file from S3 and computing SHA-256...</div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal('integrityModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ── CHARTS — REAL DATA FROM DYNAMODB ────────────────────────────────────────
+// Jinja passes real data from DynamoDB via compute_chart_data()
+var _chartLabels   = {{ chart_labels | tojson }};
+var _chartBackups  = {{ chart_backups | tojson }};
+var _chartRecovs   = {{ chart_recoveries | tojson }};
+var _chartActive   = {{ chart_active }};
+var _chartDeleted  = {{ chart_deleted }};
+var _chartRecovered= {{ chart_recovered }};
+var _chartArchived = {{ chart_archived }};
+var _chartFree     = {{ chart_free }};
+
+var actChart = new Chart(document.getElementById('actChart'),{
+  type:'bar',
+  data:{
+    labels: _chartLabels,
+    datasets:[
+      {
+        label:'Backups',
+        data: _chartBackups,
+        backgroundColor:'#00d4ff22',
+        borderColor:'#00d4ff',
+        borderWidth:1.5,
+        borderRadius:3
+      },
+      {
+        label:'Recoveries',
+        data: _chartRecovs,
+        backgroundColor:'#00ff8822',
+        borderColor:'#00ff88',
+        borderWidth:1.5,
+        borderRadius:3
+      }
+    ]
+  },
+  options:{
+    responsive:true,
+    maintainAspectRatio:false,
+    animation:{duration:800},
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        titleFont:{family:'JetBrains Mono',size:10},
+        bodyFont:{family:'JetBrains Mono',size:10},
+        callbacks:{
+          label:function(ctx){return ' '+ctx.dataset.label+': '+ctx.parsed.y;}
+        }
+      }
+    },
+    scales:{
+      x:{ticks:{color:'#2a5a7a',font:{size:9,family:'JetBrains Mono'}},grid:{color:'#030d1a'},border:{color:'#0a2a4a'}},
+      y:{
+        ticks:{color:'#2a5a7a',font:{size:9,family:'JetBrains Mono'},stepSize:1},
+        grid:{color:'#030d1a'},
+        border:{color:'#0a2a4a'},
+        min:0
+      }
+    }
+  }
+});
+
+var storageChart = new Chart(document.getElementById('storageChart'),{
+  type:'doughnut',
+  data:{
+    labels:['Active','Archived','Deleted','Recovered','Free'],
+    datasets:[{
+      data:[
+        Math.max(_chartActive,   _chartActive===0&&_chartDeleted===0&&_chartRecovered===0&&_chartArchived===0?1:_chartActive),
+        _chartArchived,
+        _chartDeleted,
+        _chartRecovered,
+        Math.max(_chartFree, 1)
+      ],
+      backgroundColor:['#00d4ff33','#ff6b0033','#ff336633','#aa44ff33','#0a1a2a'],
+      borderColor:['#00d4ff','#ff6b00','#ff3366','#aa44ff','#0a2a4a'],
+      borderWidth:1.5
+    }]
+  },
+  options:{
+    responsive:false,
+    cutout:'72%',
+    animation:{duration:800},
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        titleFont:{family:'JetBrains Mono',size:10},
+        bodyFont:{family:'JetBrains Mono',size:10}
+      }
+    }
+  }
+});
+
+// ── LIVE CHART REFRESH (every 60 seconds) ──────────────────────────────────
+setInterval(function(){
+  fetch('/chart-data')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.error){return;}
+      // Update bar chart
+      actChart.data.labels = d.labels;
+      actChart.data.datasets[0].data = d.backups;
+      actChart.data.datasets[1].data = d.recoveries;
+      actChart.update('none');
+      // Update doughnut
+      storageChart.data.datasets[0].data = [
+        Math.max(d.active,1), d.archived, d.deleted, d.recovered, Math.max(d.free,1)
+      ];
+      storageChart.update('none');
+    })
+    .catch(function(){});
+}, 60000);
+
+// ── CHECKSUM ANIMATION ───────────────────────────────────────────────────────
+var pct=78,dir=1;
+setInterval(function(){
+  pct+=dir*(Math.random()*2);
+  if(pct>=100){pct=100;dir=-1;}
+  if(pct<=65){pct=65;dir=1;}
+  var v=Math.round(pct);
+  document.getElementById('cpct').textContent=v+'%';
+  document.getElementById('cbar').style.width=v+'%';
+},900);
+
+// ── LOG STREAM ───────────────────────────────────────────────────────────────
+var logs=[
+  's3.put_object · file backed up · AES256 · status=200',
+  'sha256.hash · computed · stored to dynamodb',
+  'dynamodb.put_item · metadata indexed · ok',
+  'sns.publish · alert sent · email_delivered',
+  'cloudwatch · cpu_util=72% · nominal',
+  'iam.verify_role · bdrs-ec2-role · authorized',
+  's3.list_object_versions · versioning active · ok',
+  'lifecycle_check · glacier_rule · 30day_active',
+  's3.versioning · new version created · ok',
+  'dynamodb.scan · bdrs-metadata · items returned',
+  'cloudwatch · alarm_check · no threshold breach',
+  'aes256.verify · encryption intact · all objects',
+  'sha256.recheck · integrity confirmed · match',
+  'iam.get_role · bdrs-ec2-role · permissions valid',
+  'sns.check_subscription · email confirmed · ok',
+  'pitr.index · timestamp index updated · ok',
+];
+var li=0;
+setInterval(function(){
+  var el=document.getElementById('logList');
+  var now=new Date();
+  var t=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0')+':'+now.getSeconds().toString().padStart(2,'0');
+  var old=el.querySelector('.log-cursor');if(old){var p=old.closest('.log-line');if(p)p.querySelector('.log-cursor').remove();}
+  var d=document.createElement('div');
+  d.className='log-line';
+  d.innerHTML='<span class="log-time">'+t+'</span><span class="log-level ok">[OK]</span><span class="log-msg">'+logs[li%logs.length]+' <span class="log-cursor">_</span></span>';
+  el.appendChild(d);
+  while(el.children.length>16)el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+  li++;
+},2500);
+
+// ── SEARCH & FILTER ──────────────────────────────────────────────────────────
+var currentFilter='all';
+function setFilter(f){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+  var btn=document.getElementById('f-'+f);if(btn)btn.classList.add('active');
+  filterFiles();
+}
+function filterFiles(){
+  var q=document.getElementById('searchInput').value.toLowerCase();
+  var rows=document.querySelectorAll('#fileList .file-row');
+  var visible=0;
+  rows.forEach(function(r){
+    var name=r.dataset.name||'';
+    var status=r.dataset.status||'';
+    var matchQ=!q||name.includes(q);
+    var matchF=currentFilter==='all'||status===currentFilter;
+    if(matchQ&&matchF){r.style.display='';visible++;}
+    else{r.style.display='none';}
+  });
+  document.getElementById('noResults').style.display=visible===0?'':'none';
+}
+
+// ── BATCH DRAG & DROP ─────────────────────────────────────────────────────────
+function handleDragOver(e){e.preventDefault();document.getElementById('dropZone').classList.add('drag-over');}
+function handleDragLeave(e){document.getElementById('dropZone').classList.remove('drag-over');}
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  var dt=new DataTransfer();
+  for(var i=0;i<e.dataTransfer.files.length;i++)dt.items.add(e.dataTransfer.files[i]);
+  document.getElementById('fileInput').files=dt.files;
+  filesChosen(document.getElementById('fileInput'));
+  document.getElementById('uploadForm').submit();
+}
+function filesChosen(input){
+  if(!input.files||!input.files.length)return;
+  var n=input.files.length;
+  var btn=document.getElementById('uploadBtn');
+  if(n===1){btn.textContent='UPLOADING: '+input.files[0].name.substring(0,24)+'…';}
+  else{btn.textContent='UPLOADING '+n+' FILES...';}
+  var list=document.getElementById('batchList');
+  list.innerHTML='';
+  list.style.display='block';
+  for(var i=0;i<Math.min(n,8);i++){
+    var f=input.files[i];
+    var row=document.createElement('div');row.className='batch-item';
+    var kb=(f.size/1024).toFixed(1);
+    row.innerHTML='<span>'+f.name+'</span><span>'+kb+' KB</span>';
+    list.appendChild(row);
+  }
+  if(n>8){
+    var more=document.createElement('div');more.className='batch-item';
+    more.innerHTML='<span>…and '+(n-8)+' more</span><span></span>';
+    list.appendChild(more);
+  }
+}
+
+// ── COPY HASH ─────────────────────────────────────────────────────────────────
+function copyHash(hash, el){
+  navigator.clipboard.writeText(hash).then(function(){
+    var orig=el.textContent;
+    el.textContent='COPIED!';
+    el.style.borderColor='var(--c4)';el.style.color='var(--c4)';
+    setTimeout(function(){el.textContent=orig;el.style.borderColor='';el.style.color='';},1500);
+  });
+}
+
+// ── EXPORT AUDIT LOG ─────────────────────────────────────────────────────────
+function exportAuditLog(){
+  var rows=[['TIMESTAMP','EVENT TYPE','MESSAGE','STATUS']];
+  var alerts=[
+    {% if alerts %}
+    {% for alert in alerts %}
+    ['{{ alert.time }}','{{ alert.type|upper }}','{{ alert.message }}','{% if alert.type=="disaster" %}CRITICAL{% elif alert.type=="recover" %}RECOVERED{% else %}OK{% endif %}'],
+    {% endfor %}
+    {% endif %}
+  ];
+  if(alerts.length===0){alerts=[['--','--','No events recorded','--']];}
+  var csv='BDRS Audit Log Export\nGenerated: '+new Date().toISOString()+'\nProject: Backup & Disaster Recovery System\nInstitution: SIT Tumakuru - Batch B15\n\n';
+  csv+=[rows[0]].concat(alerts).map(function(r){return r.join(',');}).join('\n');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='bdrs_audit_log_'+Date.now()+'.csv';a.click();
+}
+
+// ── POINT-IN-TIME RESTORE ─────────────────────────────────────────────────────
+function runPITR(){
+  var raw=document.getElementById('pitrInput').value;
+  if(!raw){alert('Please select a date and time first.');return;}
+  var dt=new Date(raw);
+  var day=dt.getDate().toString().padStart(2,'0');
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var mon=months[dt.getMonth()];
+  var yr=dt.getFullYear();
+  var hh=dt.getHours().toString().padStart(2,'0');
+  var mm=dt.getMinutes().toString().padStart(2,'0');
+  var formatted=day+' '+mon+' '+yr+', '+hh+':'+mm;
+
+  var result=document.getElementById('pitrResult');
+  result.style.display='block';
+  result.innerHTML='<span style="color:#2a5a7a;">Querying DynamoDB for timestamp: '+formatted+'...</span>';
+
+  fetch('/pitr',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({timestamp:formatted})
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    if(data.error){result.innerHTML='<span style="color:var(--c5);">Error: '+data.error+'</span>';return;}
+    if(data.count===0){
+      result.innerHTML='<span style="color:#2a5a7a;">No files were backed up before '+formatted+'</span>';
+      return;
+    }
+    var html='<div style="color:var(--c4);margin-bottom:8px;">'+data.count+' file(s) at '+formatted+'</div>';
+    data.files.forEach(function(f){
+      var sc={backed_up:'#00ff88',deleted_locally:'#ff3366',recovered:'#00d4ff'};
+      var col=sc[f.status]||'#4a7a9a';
+      html+='<div class="pitr-file-row">'
+        +'<span style="color:#a0c8e0;">'+f.filename+'</span>'
+        +'<span style="color:#2a5a7a;">'+f.upload_time+'</span>'
+        +'<span style="color:'+col+';">'+f.status.replace('_',' ')+'</span>'
+        +'<a href="/download/'+f.file_id+'" style="color:var(--c6);font-size:9px;font-family:var(--mono);">RESTORE</a>'
+        +'</div>';
+    });
+    result.innerHTML=html;
+  })
+  .catch(function(e){result.innerHTML='<span style="color:var(--c5);">Network error: '+e.message+'</span>';});
+}
+
+// ── VERSION HISTORY MODAL ────────────────────────────────────────────────────
+var _currentFileId='';
+function openVersionsModal(fileId, filename){
+  _currentFileId=fileId;
+  document.getElementById('verModalFilename').textContent='FILE: '+filename+' · Loading S3 versions...';
+  document.getElementById('verListWrap').innerHTML='<div style="text-align:center;padding:30px;font-size:11px;font-family:var(--mono);color:#2a5a7a;">Fetching version history from S3...</div>';
+  document.getElementById('versionsModal').classList.add('open');
+
+  fetch('/versions/'+fileId)
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data.error){
+        document.getElementById('verListWrap').innerHTML='<div style="text-align:center;padding:20px;color:var(--c5);font-size:11px;font-family:var(--mono);">Error: '+data.error+'</div>';
+        return;
+      }
+      document.getElementById('verModalFilename').textContent='FILE: '+data.filename+' · '+data.versions.length+' version(s) stored in S3';
+      if(data.versions.length===0){
+        document.getElementById('verListWrap').innerHTML='<div style="text-align:center;padding:20px;color:#2a5a7a;font-size:11px;font-family:var(--mono);">No versions found. Ensure S3 versioning is enabled on your bucket.</div>';
+        return;
+      }
+      var html='';
+      data.versions.forEach(function(v){
+        var kb=(v.size/1024).toFixed(1)+' KB';
+        html+='<div class="ver-entry">'
+          +'<span class="ver-badge '+(v.is_latest?'ver-latest':'ver-old')+'">'+(v.is_latest?'LATEST':'OLD')+'</span>'
+          +'<div class="ver-info"><div class="ver-id">'+v.version_id.substring(0,28)+'...</div><div class="ver-date">'+v.last_modified+'</div></div>'
+          +'<span class="ver-size">'+kb+'</span>'
+          +'<a href="/restore_version/'+fileId+'/'+v.version_id+'" class="ver-dl-btn">↓ Download</a>'
+          +'</div>';
+      });
+      document.getElementById('verListWrap').innerHTML=html;
+    })
+    .catch(function(e){
+      document.getElementById('verListWrap').innerHTML='<div style="text-align:center;padding:20px;color:var(--c5);font-size:11px;font-family:var(--mono);">Network error: '+e.message+'</div>';
+    });
+}
+
+// ── INTEGRITY CHECK MODAL ────────────────────────────────────────────────────
+function verifyIntegrity(fileId){
+  document.getElementById('integrityModalBody').innerHTML='<div style="text-align:center;padding:30px;font-size:11px;font-family:var(--mono);color:#2a5a7a;">Fetching file from S3 and computing SHA-256 hash...<br><span style="color:var(--c1);">This may take a moment for large files.</span></div>';
+  document.getElementById('integrityModal').classList.add('open');
+
+  fetch('/integrity/'+fileId)
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data.error){
+        document.getElementById('integrityModalBody').innerHTML='<div style="color:var(--c5);text-align:center;padding:20px;font-family:var(--mono);font-size:11px;">Error: '+data.error+'</div>';
+        return;
+      }
+      if(data.ok===null){
+        document.getElementById('integrityModalBody').innerHTML=
+          '<div style="padding:10px 0;font-size:11px;font-family:var(--mono);color:#6a9ab8;">'+data.message+'</div>'
+          +'<div class="hash-display"><div class="label">LIVE SHA-256</div><div class="value">'+data.live_hash+'</div></div>';
+        return;
+      }
+      var resultColor=data.ok?'var(--c4)':'var(--c5)';
+      var resultIcon=data.ok?'✅':'❌';
+      var html='<div class="hash-display"><div class="label">STORED SHA-256 (uploaded)</div><div class="value '+(data.ok?'match':'mismatch')+'">'+data.stored_hash+'</div></div>'
+        +'<div class="hash-display"><div class="label">LIVE SHA-256 (re-fetched from S3)</div><div class="value '+(data.ok?'match':'mismatch')+'">'+data.live_hash+'</div></div>'
+        +'<div class="int-result-box" style="border-color:'+resultColor+'22;">'
+        +'<div class="int-result-icon">'+resultIcon+'</div>'
+        +'<div class="int-result-text" style="color:'+resultColor+';">'+data.message+'</div>'
+        +'<div class="int-result-sub">File: '+data.filename+'</div>'
+        +'</div>';
+      document.getElementById('integrityModalBody').innerHTML=html;
+    })
+    .catch(function(e){
+      document.getElementById('integrityModalBody').innerHTML='<div style="color:var(--c5);text-align:center;padding:20px;font-family:var(--mono);font-size:11px;">Network error: '+e.message+'</div>';
+    });
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────────────────────────────
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+}
+
+// ── FILE PREVIEW ──────────────────────────────────────────────────────────────
+function openPreviewModal(fileId, filename){
+  document.getElementById('previewModalTitle').textContent='PREVIEW — '+filename;
+  document.getElementById('previewBody').innerHTML='<div class="no-preview">Fetching from S3...</div>';
+  document.getElementById('previewModal').classList.add('open');
+
+  fetch('/preview/'+fileId)
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.error){
+        document.getElementById('previewBody').innerHTML='<div class="no-preview" style="color:var(--c5);">Error: '+d.error+'</div>';
+        return;
+      }
+      if(!d.previewable){
+        document.getElementById('previewBody').innerHTML=
+          '<div class="no-preview">Preview not available for this file type ('+d.mime+').<br><br>'
+          +'<span style="color:var(--c1);">Download the file to view it.</span></div>';
+        return;
+      }
+      if(d.mime.startsWith('image/')){
+        document.getElementById('previewBody').innerHTML=
+          '<img src="data:'+d.mime+';base64,'+d.data+'" alt="'+d.filename+'">';
+      } else if(d.mime==='application/pdf'){
+        document.getElementById('previewBody').innerHTML=
+          '<iframe src="data:application/pdf;base64,'+d.data+'" title="'+d.filename+'"></iframe>';
+      }
+    })
+    .catch(function(e){
+      document.getElementById('previewBody').innerHTML='<div class="no-preview" style="color:var(--c5);">Network error: '+e.message+'</div>';
+    });
+}
+
+// ── FILE TAGGING ──────────────────────────────────────────────────────────────
+var _tagFileId='';
+function openTagModal(fileId, currentTags){
+  _tagFileId=fileId;
+  document.getElementById('tagModalInput').value=currentTags;
+  document.getElementById('tagModalMsg').textContent='';
+  document.getElementById('tagModal').classList.add('open');
+  setTimeout(function(){document.getElementById('tagModalInput').focus();},200);
+}
+function saveTags(){
+  var raw=document.getElementById('tagModalInput').value;
+  var tags=raw.split(',').map(function(t){return t.trim();}).filter(Boolean);
+  document.getElementById('tagModalMsg').textContent='Saving...';
+  document.getElementById('tagModalMsg').style.color='#4a7a9a';
+
+  fetch('/tag/'+_tagFileId,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({tags:tags})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){
+      document.getElementById('tagModalMsg').textContent='Tags saved! Reloading...';
+      document.getElementById('tagModalMsg').style.color='var(--c4)';
+      setTimeout(function(){location.reload();},800);
+    } else {
+      document.getElementById('tagModalMsg').textContent='Error: '+d.error;
+      document.getElementById('tagModalMsg').style.color='var(--c5)';
+    }
+  })
+  .catch(function(e){
+    document.getElementById('tagModalMsg').textContent='Network error: '+e.message;
+    document.getElementById('tagModalMsg').style.color='var(--c5)';
+  });
+}
+
+// ── TAG FILTER ────────────────────────────────────────────────────────────────
+var currentTagFilter='';
+function setTagFilter(tag, btn){
+  currentTagFilter=tag;
+  document.querySelectorAll('.tag-filter-btn').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  filterFiles();
+}
+
+// ── SEARCH & FILTER (updated to include tag filter) ───────────────────────────
+var currentFilter='all';
+function setFilter(f){
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active');});
+  var btn=document.getElementById('f-'+f);if(btn)btn.classList.add('active');
+  filterFiles();
+}
+function filterFiles(){
+  var q=document.getElementById('searchInput').value.toLowerCase();
+  var rows=document.querySelectorAll('#fileList .file-row');
+  var visible=0;
+  rows.forEach(function(r){
+    var name=r.dataset.name||'';
+    var status=r.dataset.status||'';
+    var tags=(r.dataset.tags||'').toLowerCase();
+    var matchQ=!q||name.includes(q);
+    var matchF=currentFilter==='all'||status===currentFilter;
+    var matchT=!currentTagFilter||tags.includes(currentTagFilter.toLowerCase());
+    if(matchQ&&matchF&&matchT){r.style.display='';visible++;}
+    else{r.style.display='none';}
+  });
+  document.getElementById('noResults').style.display=visible===0?'':'none';
+}
+
+// ── SNS MANAGEMENT ────────────────────────────────────────────────────────────
+function loadSNSSubscriptions(){
+  fetch('/notifications')
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var el=document.getElementById('snsList');
+      if(d.error){el.innerHTML='<div style="padding:12px;font-size:10px;color:#2a5a7a;font-family:var(--mono);">Could not load subscriptions.</div>';return;}
+      var subs=d.subscriptions.filter(function(s){return s.Protocol==='email';});
+      if(subs.length===0){el.innerHTML='<div style="padding:12px;font-size:10px;color:#2a5a7a;font-family:var(--mono);">No email subscriptions yet.</div>';return;}
+      var html='';
+      subs.forEach(function(s){
+        var confirmed=s.SubscriptionArn&&s.SubscriptionArn!=='PendingConfirmation';
+        html+='<div class="sns-item">'
+          +'<span class="sns-email">'+s.Endpoint+'</span>'
+          +'<span class="sns-status '+(confirmed?'sns-confirmed':'sns-pending')+'">'+(confirmed?'CONFIRMED':'PENDING')+'</span>';
+        if(confirmed){
+          html+='<button class="sns-unsub-btn" onclick="snsUnsubscribe(\''+s.SubscriptionArn+'\',this)">Unsubscribe</button>';
+        }
+        html+='</div>';
+      });
+      el.innerHTML=html;
+    })
+    .catch(function(){
+      document.getElementById('snsList').innerHTML='<div style="padding:12px;font-size:10px;color:#2a5a7a;font-family:var(--mono);">SNS data unavailable.</div>';
+    });
+}
+function snsSubscribe(){
+  var email=document.getElementById('snsEmailIn').value.trim();
+  if(!email){return;}
+  fetch('/notifications/subscribe',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){
+      document.getElementById('snsEmailIn').value='';
+      alert(d.message);
+      loadSNSSubscriptions();
+    } else {
+      alert('Error: '+d.error);
+    }
+  });
+}
+function snsUnsubscribe(arn, btn){
+  if(!confirm('Unsubscribe this email from BDRS alerts?'))return;
+  btn.textContent='Removing...';
+  fetch('/notifications/unsubscribe',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription_arn:arn})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){loadSNSSubscriptions();}
+    else{alert('Error: '+d.error);btn.textContent='Unsubscribe';}
+  });
+}
+// Load SNS subscriptions on page load
+window.addEventListener('load', loadSNSSubscriptions);
+
+// ── MODAL HELPERS ─────────────────────────────────────────────────────────────
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+}
+
+// ── DR DRILL MODAL ────────────────────────────────────────────────────────────
+var drillStep=1;
+var drillMax=5;
+function openDrillModal(){drillStep=1;updateDrillUI();document.getElementById('drillModal').classList.add('open');}
+function closeDrillModal(){
+  document.getElementById('drillModal').classList.remove('open');drillStep=1;
+  for(var i=1;i<=5;i++){
+    document.getElementById('ds'+i).className='drill-step'+(i===1?' active':'');
+    document.getElementById('drill-'+i).className='drill-content'+(i===1?' active':'');
+    document.getElementById('dl'+i).className=i===1?'active-lbl':'';
+  }
+  document.getElementById('drillNextBtn').textContent='NEXT STEP →';
+  document.getElementById('drillNextBtn').disabled=false;
+}
+function updateDrillUI(){
+  for(var i=1;i<=5;i++){
+    document.getElementById('ds'+i).className='drill-step'+(i<drillStep?' done':i===drillStep?' active':'');
+    document.getElementById('drill-'+i).className='drill-content'+(i===drillStep?' active':'');
+    document.getElementById('dl'+i).className=i===drillStep?'active-lbl':'';
+  }
+  var btn=document.getElementById('drillNextBtn');
+  if(drillStep===5){btn.textContent='CLOSE REPORT';btn.onclick=closeDrillModal;}
+  else if(drillStep===4){btn.textContent='RUN RECOVERY →';btn.onclick=drillNext;}
+  else{btn.textContent='NEXT STEP →';btn.onclick=drillNext;}
+}
+function drillNext(){if(drillStep===4){runRecovery();return;}if(drillStep<drillMax){drillStep++;updateDrillUI();}}
+function runRecovery(){
+  var btn=document.getElementById('drillNextBtn');
+  btn.disabled=true;btn.textContent='RECOVERING...';
+  var bar=document.getElementById('recBar');
+  var pct=document.getElementById('recPct');
+  var log=document.getElementById('recLog');
+  var prog=0;
+  var recLogs=[
+    ['inf','s3.get_object · restoring file 1/4 · database.sql'],
+    ['ok','sha256.verify · hash match · database.sql · INTEGRITY PASS'],
+    ['ok','file restored · database.sql · 847 KB'],
+    ['inf','s3.get_object · restoring file 2/4 · config.json'],
+    ['ok','sha256.verify · hash match · config.json · INTEGRITY PASS'],
+    ['ok','file restored · config.json · 12 KB'],
+    ['ok','dynamodb.rebuild · metadata intact · complete'],
+    ['ok','aes256.decrypt · all objects decrypted · ok'],
+    ['ok','recovery.complete · 100% data restored · zero loss'],
+  ];
+  var idx=0;
+  var iv=setInterval(function(){
+    prog=Math.min(prog+(8+Math.random()*6),100);
+    bar.style.width=Math.round(prog)+'%';
+    pct.textContent=Math.round(prog)+'%';
+    if(idx<recLogs.length&&prog>=(idx+1)*11){
+      var entry=recLogs[idx];
+      var d=document.createElement('div');
+      d.innerHTML='<span class="'+entry[0]+'">['+entry[0].toUpperCase()+']</span> '+entry[1];
+      log.appendChild(d);log.scrollTop=log.scrollHeight;idx++;
+    }
+    if(prog>=100){
+      clearInterval(iv);
+      setTimeout(function(){drillStep=5;updateDrillUI();btn.disabled=false;},600);
+    }
+  },220);
+}
+</script>
+</body>
+</html>

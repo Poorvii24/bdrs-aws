@@ -1,0 +1,10 @@
+# Never upload these to GitHub
+bdrs-key.pem
+*.pem
+*.env
+__pycache__/
+*.pyc
+.env
+nohup.out
+*.log
+.DS_Store
